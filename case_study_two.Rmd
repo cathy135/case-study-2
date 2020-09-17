@@ -1,0 +1,86 @@
+---
+title: "case_study_two"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Data
+
+```{r}
+file_list <- list.files()
+subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
+```
+
+```{r}
+features_all_modalities = function(fn, win_size) {
+  df = read.csv(fn)
+  df = df[,-c("Label", "Subject")]
+  features_df <- data.frame(matrix(ncol = ncol(df)*6, nrow = nrow(df)))
+  new_names = sapply(1:length(df), function(x) {
+    c(paste0(colnames(df[,c]),"_mean"),
+      paste0(colnames(df[,c]),"_sd"),
+      paste0(colnames(df[,c]),"_range"),
+      paste0(colnames(df[,c]),"_min"),
+      paste0(colnames(df[,c]),"_max"),
+      paste0(colnames(df[,c]),"_skew")
+      )
+  })
+  colnames(features_df) = new_names
+  for (r in 1:nrow(df)) {
+    window = df[r:r+win_size*4,]
+    for (c in 1:length(window) ) {
+      if (colnames(window[,c]) != "Label" & colnames(window[,c]) != "Subject") {
+           column = window[,c]
+           
+           mu_column = mean(column)
+
+           new_col_name = paste0(colnames(window[,c]),"_mean")
+           cindx = colnames(features_df)[whichcolnames(features_df)==new_col_name]
+           features_df[r, cindx] = mu_column
+      }
+    }
+ #make sure merge label subject back into feature dataframe
+  }
+  
+}
+```
+
+```{r}
+features_all_modalities = function(fn, win_size) {
+  df = read.csv(fn)
+  drops <- c("X", "Label", "subject")
+  df = df[ , !(names(df) %in% drops)]
+  features_df <- data.frame(matrix(ncol = ncol(df)*6, nrow = 4369))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      paste0(colnames(df)[c],"_range"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max"),
+      paste0(colnames(df)[c],"_skew")
+      )
+  })
+  colnames(features_df) = new_names
+  
+  install.packages("zoo")
+  library(zoo)
+  for (c in 1:length(df)) {
+    mu_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    print(new_col_name)
+    cindx = which(colnames(features_df)==new_col_name)
+    print(cindx)
+    features_df[, cindx] = mu_vals
+    # features_df = cbind(features_df, mu_vals)
+  }
+
+      }
+ #make sure merge label subject back into feature dataframe
+
+  
+}
+
+```
