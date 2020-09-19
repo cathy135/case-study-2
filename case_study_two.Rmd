@@ -13,6 +13,7 @@ library(zoo)
 library(varian)
 library(tidyverse)
 library(corrplot)
+library(glmnet)
 ```
 
 ## Import Data
@@ -235,10 +236,6 @@ write.csv(ALL_df, "master_df.csv")
 ```{r corrplot}
 ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
 remove = c("ACC_wrist_x", "ACC_wrist_y","ACC_wrist_z", "ACC_wrist_3D", "EDA_", "TEMP_chest")
-# stats = c("mean", "sd", "min", "max")
-# for (nm in colnames(ALL_df)) {
-#   if grep()
-# }
 
 remove_select_cov = ALL_df %>%
   select(-contains("ACC_wrist")) %>%
@@ -248,47 +245,46 @@ remove_select_cov = ALL_df %>%
 
 non_biological = c("Label", "Subject")
 remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
+remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
 
 
 cormatrix = cor(remove_select_cov_nb)
 corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
 ```
 
+
+```{r testtrainsplit}
+set.seed(123)
+smp_size <- floor(0.75 * nrow(remove_select_cov))
+train_ind <- sample(seq_len(nrow(remove_select_cov)), size = smp_size)
+train <- remove_select_cov[train_ind, ]
+# temp = train %>% select(-Label, -Subject)
+# temp_centered = data.frame(scale(temp, center=TRUE, scale = FALSE)) 
+# temp_centered$Label = train$Label
+# train = temp_centered
+test <- remove_select_cov[-train_ind, ]
+# temp = test %>% select(-Label, -Subject)
+# temp_centered = data.frame(scale(temp, center=TRUE, scale = FALSE)) 
+# temp_centered$Label = test$Label
+# test = temp_centered
+```
+
 ```{r glmnet-data-driven}
-
-remove_select_cov$Label <- ifelse(remove_select_cov$Label==2, 0, 1)
-# library(MASS)
-full.model = glm(Label ~., family = binomial(link="logit"), data=remove_select_cov)
-# 
-# step.model = full.model %>% stepAIC(trace=FALSE)
-
-#load required library
-library(glmnet)
 #convert training data to matrix format
-x <- model.matrix(Label~.,remove_select_cov)
+x <- as.matrix(train%>%select(-Label), nrow = nrow(train))
 #convert class to numerical variable
-y <- ifelse(remove_select_cov$Label==2, 0, 1)
+y <- ifelse(train$Label=="2", 0, 1)
 fit = glmnet(x, y, alpha = 1, family = "binomial")
 
 plot(fit)
 print(fit)
 coefficients = coef(fit, s = 0.057370)
-coef.apprx = coef(fit, s = 0.5, exact = FALSE)
-cbind2(coef.exact, coef.apprx)
 
-#perform grid search to find optimal value of lambda
-#family= binomial => logistic regression, alpha=1 => lasso
-# check docs to explore other type.measure options
 cvfit <- cv.glmnet(x,y,alpha=1,family="binomial",type.measure = "mse")
 plot(cvfit)
 
-#glmnet(x, y, lambda=cv.glmnet(x, y, alpha=1, )$lambda.1se)
-#plot result
 min = coef(cvfit, s = "lambda.min")
 se1 = coef(cvfit, s = "lambda.1se")
-
-
-logreg.fit = glmnet(remove_select_cov%>%select(-Label), remove_select_cov$Label)
 ```
 
 Now, let's use a domain driven approach.
@@ -298,34 +294,19 @@ Pick: acc_3D, EDA_min, EDA_max, temp_min, hr_mean, resp_sd
 from a physiological standpoint, we know sweat (EDA), heating up (temp), breathing (resp), heart beating (hr),some justofication for ACC makes it seem we should include those in some capcity in our model
 
 ```{r}
-smp_size <- floor(0.75 * nrow(remove_select_cov))
-
-## set the seed to make your partition reproducible
-set.seed(123)
-train_ind <- sample(seq_len(nrow(remove_select_cov)), size = smp_size)
-
-train <- remove_select_cov[train_ind, ]
-test <- remove_select_cov[-train_ind, ]
-
-
-
 domain.model = glm(Label ~ ACC_chest_3D_mean+ACC_chest_3D_sd+ACC_chest_3D_min+ACC_chest_3D_max+
-                   EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max#+Subject#+ACC_chest_3D_mean*Subject+
-                     # ACC_chest_3D_mean*Subject+
-                     # ACC_chest_3D_mean*Subject+
-                     # ACC_chest_3D_mean*Subject+
+                   EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max+Subject
                    , family = binomial(link="logit"), data=train)
-library(bestglm)
-domain.model = bestglm(Xy = train, family = binomial, IC = "AIC", RequireFullEnumerationQ = T)
-                       
-                       abel ~ ACC_chest_3D_mean+ACC_chest_3D_sd+ACC_chest_3D_min+ACC_chest_3D_max+
-                   EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max#+Subject#+ACC_chest_3D_mean*Subject+
+
+#+Subject#+ACC_chest_3D_mean*Subject+
                      # ACC_chest_3D_mean*Subject+
                      # ACC_chest_3D_mean*Subject+
                      # ACC_chest_3D_mean*Subject+
-                   , family = binomial(link="logit"), data=train)
-bestglm(Xy=nes1992sub, family=binomial,
-IC="AIC", RequireFullEnumerationQ = T)
+
+#library(bestglm)
+# domain.model = bestglm(Xy = train, family = binomial, IC = "AIC", RequireFullEnumerationQ = T)
+
+# TRY BAS
 
 summary(domain.model)
 
@@ -344,8 +325,6 @@ pred.test = full.model %>% predict(test, type= "response")
 pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test$Label==pred.test)
-
-# step.model = full.model %>% stepAIC(trace=FALSE)
 ```
 
 ```{r}
@@ -375,6 +354,4 @@ mean(test$Label==pred.test)
 # # amy said LOOCV will be computationally expensive
 # # start with LOOCV
 # # test-train
-
-
 ```
