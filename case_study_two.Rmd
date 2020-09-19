@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(zoo)
 library(varian)
 library(tidyverse)
+library(corrplot)
 ```
 
 ## Import Data
@@ -65,11 +66,11 @@ features_all_modalities = function(fn, win_size) {
   drops <- c("X", "Label", "subject")
   df = df_all[ , !(names(df_all) %in% drops)]
   replace_rows =  length(rollapply(df[,1], width = win_size*4, by = 1, FUN = mean, align = "left"))
-  features_df <- data.frame(matrix(ncol = ncol(df)*5, nrow = replace_rows))
+  features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
   new_names = sapply(1:length(df), function(c) {
     c(paste0(colnames(df)[c],"_mean"),
       paste0(colnames(df)[c],"_sd"),
-      paste0(colnames(df)[c],"_range"),
+      #paste0(colnames(df)[c],"_range"),
       paste0(colnames(df)[c],"_min"),
       paste0(colnames(df)[c],"_max")
       # paste0(colnames(df)[c],"_skew")
@@ -106,10 +107,10 @@ features_all_modalities = function(fn, win_size) {
     features_df[, cindx] = min_vals
     
     # finding range
-    range_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = range, align = "left")
-    new_col_name = paste0(colnames(df)[c],"_range")
-    cindx = which(colnames(features_df)==new_col_name)
-    features_df[, cindx] = range_vals
+    # range_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = range, align = "left")
+    # new_col_name = paste0(colnames(df)[c],"_range")
+    # cindx = which(colnames(features_df)==new_col_name)
+    # features_df[, cindx] = range_vals
     
     # 
     # features_df = cbind(features_df, mu_vals)
@@ -191,11 +192,11 @@ HR_calc = function(df, win_size) {
   sd_vals = rollapply(df, width = win_size, by = 1, FUN = sd, align = "left")
   min_vals = rollapply(df, width = win_size, by = 1, FUN = min, align = "left")
   max_vals = rollapply(df, width = win_size, by = 1, FUN = max, align = "left")
-  range_vals = max_vals-min_vals
+  # range_vals = max_vals-min_vals
   
   return(list(mu = rep(mu_vals,each=4), sd = rep(sd_vals,each=4),
-              min = rep(min_vals,each=4), max = rep(max_vals,each=4),
-              range = rep(range_vals,each=4)))
+              min = rep(min_vals,each=4), max = rep(max_vals,each=4)))#,
+              #range = rep(range_vals,each=4)))
 }
 ```
 
@@ -217,8 +218,8 @@ for (i in 1:length(subject_data)) {
   #hr_vals = hz_format(HR_data, 5)
   
   df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
-                             ncol=5, byrow = F))
-  colnames(df_hr) = c("hr_wrist_mu","hr_wrist_sd", "hr_wrist_min", "hr_wrist_max", "hr_wrist_range")
+                             ncol=4, byrow = F))
+  colnames(df_hr) = c("hr_wrist_mu","hr_wrist_sd", "hr_wrist_min", "hr_wrist_max")#, "hr_wrist_range")
   df_hr$ID =seq.int(nrow(df_hr))
   
   feature_data = feature_data[-c(1:40),]
@@ -231,14 +232,133 @@ for (i in 1:length(subject_data)) {
 write.csv(ALL_df, "master_df.csv")
 ```
 
+```{r corrplot}
+ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
+remove = c("ACC_wrist_x", "ACC_wrist_y","ACC_wrist_z", "ACC_wrist_3D", "EDA_", "TEMP_chest")
+# stats = c("mean", "sd", "min", "max")
+# for (nm in colnames(ALL_df)) {
+#   if grep()
+# }
+
+remove_select_cov = ALL_df %>%
+  select(-contains("ACC_wrist")) %>%
+  select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
+  select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) 
+
+
+non_biological = c("Label", "Subject")
+remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
+
+
+cormatrix = cor(remove_select_cov_nb)
+corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
+```
+
+```{r glmnet-data-driven}
+
+remove_select_cov$Label <- ifelse(remove_select_cov$Label==2, 0, 1)
+# library(MASS)
+full.model = glm(Label ~., family = binomial(link="logit"), data=remove_select_cov)
+# 
+# step.model = full.model %>% stepAIC(trace=FALSE)
+
+#load required library
+library(glmnet)
+#convert training data to matrix format
+x <- model.matrix(Label~.,remove_select_cov)
+#convert class to numerical variable
+y <- ifelse(remove_select_cov$Label==2, 0, 1)
+fit = glmnet(x, y, alpha = 1, family = "binomial")
+
+plot(fit)
+print(fit)
+coefficients = coef(fit, s = 0.057370)
+coef.apprx = coef(fit, s = 0.5, exact = FALSE)
+cbind2(coef.exact, coef.apprx)
+
+#perform grid search to find optimal value of lambda
+#family= binomial => logistic regression, alpha=1 => lasso
+# check docs to explore other type.measure options
+cvfit <- cv.glmnet(x,y,alpha=1,family="binomial",type.measure = "mse")
+plot(cvfit)
+
+#glmnet(x, y, lambda=cv.glmnet(x, y, alpha=1, )$lambda.1se)
+#plot result
+min = coef(cvfit, s = "lambda.min")
+se1 = coef(cvfit, s = "lambda.1se")
+
+
+logreg.fit = glmnet(remove_select_cov%>%select(-Label), remove_select_cov$Label)
+```
+
+Now, let's use a domain driven approach.
+We know stuff is correlated, so we don't want to use everything
+
+Pick: acc_3D, EDA_min, EDA_max, temp_min, hr_mean, resp_sd
+from a physiological standpoint, we know sweat (EDA), heating up (temp), breathing (resp), heart beating (hr),some justofication for ACC makes it seem we should include those in some capcity in our model
+
+```{r}
+smp_size <- floor(0.75 * nrow(remove_select_cov))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(remove_select_cov)), size = smp_size)
+
+train <- remove_select_cov[train_ind, ]
+test <- remove_select_cov[-train_ind, ]
+
+
+
+domain.model = glm(Label ~ ACC_chest_3D_mean+ACC_chest_3D_sd+ACC_chest_3D_min+ACC_chest_3D_max+
+                   EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max#+Subject#+ACC_chest_3D_mean*Subject+
+                     # ACC_chest_3D_mean*Subject+
+                     # ACC_chest_3D_mean*Subject+
+                     # ACC_chest_3D_mean*Subject+
+                   , family = binomial(link="logit"), data=train)
+library(bestglm)
+domain.model = bestglm(Xy = train, family = binomial, IC = "AIC", RequireFullEnumerationQ = T)
+                       
+                       abel ~ ACC_chest_3D_mean+ACC_chest_3D_sd+ACC_chest_3D_min+ACC_chest_3D_max+
+                   EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max#+Subject#+ACC_chest_3D_mean*Subject+
+                     # ACC_chest_3D_mean*Subject+
+                     # ACC_chest_3D_mean*Subject+
+                     # ACC_chest_3D_mean*Subject+
+                   , family = binomial(link="logit"), data=train)
+bestglm(Xy=nes1992sub, family=binomial,
+IC="AIC", RequireFullEnumerationQ = T)
+
+summary(domain.model)
+
+pred.test = domain.model %>% predict(test, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test$Label==pred.test)
+
+# step.domain.model = domain.model %>% stepAIC(trace=FALSE)
+# summary(step.domain.model)
+
+# SUBJECT INCLUDED HERE
+full.model = glm(Label ~., family = binomial(link="logit"), data=train)
+
+pred.test = full.model %>% predict(test, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test$Label==pred.test)
+
+# step.model = full.model %>% stepAIC(trace=FALSE)
+```
+
 ```{r}
 # IBI and HRV and HR
 
+# WORK
 # EDA
 # # ggpairs
-# # look for interactions
-# # pca (clusters)
-# # clusters
+# # pca (clusters) (Cathy)
+# # clusters (Malavi)
+# # plot by subject for interactions (Malavi)
+# # 0/1 label boxplots versus (Cathy)
+
 
 # models
 # # frequentist Logistic regression 
@@ -247,8 +367,14 @@ write.csv(ALL_df, "master_df.csv")
 # # (DT and/or Randon Forest and/or Linear Discriminant Analysis and/or NN and/or KNN and/or GMM)
 # # for ML (put everything) use feature (variable) importance
 
+# WORK
+# # random forest (malavi)
+# # Lda/knn (cathy)
+
 # CROSS VALIDATION
 # # amy said LOOCV will be computationally expensive
 # # start with LOOCV
 # # test-train
+
+
 ```
