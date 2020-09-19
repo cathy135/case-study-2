@@ -7,6 +7,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Call Libraries
+```{r}
+library(zoo)
+library(varian)
+library(tidyverse)
+```
+
 ## Import Data
 
 ```{r}
@@ -14,38 +21,40 @@ file_list <- list.files()
 subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 ```
 
-```{r}
-features_all_modalities = function(fn, win_size) {
-  df = read.csv(fn)
-  df = df[,-c("Label", "Subject")]
-  features_df <- data.frame(matrix(ncol = ncol(df)*6, nrow = nrow(df)))
-  new_names = sapply(1:length(df), function(x) {
-    c(paste0(colnames(df[,c]),"_mean"),
-      paste0(colnames(df[,c]),"_sd"),
-      paste0(colnames(df[,c]),"_range"),
-      paste0(colnames(df[,c]),"_min"),
-      paste0(colnames(df[,c]),"_max"),
-      paste0(colnames(df[,c]),"_skew")
-      )
-  })
-  colnames(features_df) = new_names
-  for (r in 1:nrow(df)) {
-    window = df[r:r+win_size*4,]
-    for (c in 1:length(window) ) {
-      if (colnames(window[,c]) != "Label" & colnames(window[,c]) != "Subject") {
-           column = window[,c]
-           
-           mu_column = mean(column)
 
-           new_col_name = paste0(colnames(window[,c]),"_mean")
-           cindx = colnames(features_df)[whichcolnames(features_df)==new_col_name]
-           features_df[r, cindx] = mu_column
-      }
-    }
- #make sure merge label subject back into feature dataframe
-  }
-  
-}
+
+```{r}
+# features_all_modalities = function(fn, win_size) {
+#   df = read.csv(fn)
+#   df = df[,-c("Label", "Subject")]
+#   features_df <- data.frame(matrix(ncol = ncol(df)*6, nrow = nrow(df)))
+#   new_names = sapply(1:length(df), function(x) {
+#     c(paste0(colnames(df[,c]),"_mean"),
+#       paste0(colnames(df[,c]),"_sd"),
+#       paste0(colnames(df[,c]),"_range"),
+#       paste0(colnames(df[,c]),"_min"),
+#       paste0(colnames(df[,c]),"_max"),
+#       paste0(colnames(df[,c]),"_skew")
+#       )
+#   })
+#   colnames(features_df) = new_names
+#   for (r in 1:nrow(df)) {
+#     window = df[r:r+win_size*4,]
+#     for (c in 1:length(window) ) {
+#       if (colnames(window[,c]) != "Label" & colnames(window[,c]) != "Subject") {
+#            column = window[,c]
+#            
+#            mu_column = mean(column)
+# 
+#            new_col_name = paste0(colnames(window[,c]),"_mean")
+#            cindx = colnames(features_df)[whichcolnames(features_df)==new_col_name]
+#            features_df[r, cindx] = mu_column
+#       }
+#     }
+#  #make sure merge label subject back into feature dataframe
+#   }
+#   
+# }
 ```
 
 ```{r}
@@ -53,34 +62,169 @@ features_all_modalities = function(fn, win_size) {
   df = read.csv(fn)
   drops <- c("X", "Label", "subject")
   df = df[ , !(names(df) %in% drops)]
-  features_df <- data.frame(matrix(ncol = ncol(df)*6, nrow = 4369))
+  replace_rows = nrow(df)-3
+  features_df <- data.frame(matrix(ncol = ncol(df)*5, nrow = replace_rows))
   new_names = sapply(1:length(df), function(c) {
     c(paste0(colnames(df)[c],"_mean"),
       paste0(colnames(df)[c],"_sd"),
       paste0(colnames(df)[c],"_range"),
       paste0(colnames(df)[c],"_min"),
-      paste0(colnames(df)[c],"_max"),
-      paste0(colnames(df)[c],"_skew")
+      paste0(colnames(df)[c],"_max")
+      # paste0(colnames(df)[c],"_skew")
       )
   })
   colnames(features_df) = new_names
   
-  install.packages("zoo")
-  library(zoo)
-  for (c in 1:length(df)) {
-    mu_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = mean, align = "left")
-    new_col_name = paste0(colnames(df)[c],"_mean")
-    print(new_col_name)
-    cindx = which(colnames(features_df)==new_col_name)
-    print(cindx)
-    features_df[, cindx] = mu_vals
-    # features_df = cbind(features_df, mu_vals)
-  }
-
-      }
- #make sure merge label subject back into feature dataframe
 
   
+  for (c in 1:length(df)) {
+    
+    # finding mu
+    mu_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = mu_vals
+    
+    # finding sd
+    sd_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = sqrt(sd_vals)
+    
+    # finding max
+    max_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = max_vals
+    
+    # finding min
+    min_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = min_vals
+    
+    # finding range
+    range_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = range, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_range")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = range_vals
+    
+    # 
+    # features_df = cbind(features_df, mu_vals)
+  }
+ # make sure merge label, subject back into feature dataframe
+  return(features_df)
 }
 
+feature_data = features_all_modalities(subject_data[9], 1)
+
+```
+
+```{r}
+IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
+
+RMSSD_calc = function(df, peaks) {
+  # for (i in 1:nrow(df)) {
+  #   if (i <= nrow(df)-peaks)
+  vals = rollapply(df[,2], width = peaks, by = 1, FUN = rmssd, align = "left")
+  #}
+  
+  return(vals)
+}
+
+hrv = RMSSD_calc(IBI_data_3, 3)
+IBI_data_3[1:length(hrv),3] = hrv
+colnames(IBI_data_3)[3] = "HRV"
+IBI_data_3 = na.omit(IBI_data_3)
+```
+
+```{r}
+hz_format = function(df, win_size) {
+  mu_vals = NULL
+  sd_vals = NULL
+  
+  for (i in 1:nrow(df)) {
+    #if (i <= nrow(df)-win_size)
+    nexttime = df[i,1] + win_size
+      # browser()
+    
+    #print(nexttime)
+    if (i+1 <= nrow(df)) {
+
+    for (j in i+1:nrow(df)) {
+           # print(df[j,1])
+      if (!is.na(df[j,1])) {
+      #   print(df[j,1]==nexttime)
+      # if (df[j,1]==nexttime) {
+      #   stoprow = j
+      # }
+        # print(i)
+        # print(j)
+        # print(df[j,1])
+        # print(nexttime)
+      if ((df[j,1] >= nexttime) & (df[j-1,1]<nexttime)) {
+        stoprow = j-1
+      }
+      }
+    }
+    mu_vals = c(mu_vals, mean(df[i:stoprow, 3]))
+    sd_vals = c(sd_vals, sqrt(var(df[i:stoprow, 3])))
+    
+    }
+  }
+  
+  return(list(hrv_mu = mu_vals, hrv_sd = sd_vals))
+}
+
+test = hz_format(IBI_data_3, 5)
+```
+
+
+```{r}
+ALL_df = NULL
+for (i in 1:length(subject_data)) {
+  feature_data = features_all_modalities(subject_data[i], 1)
+  feature_data$ID <- seq.int(nrow(feature_data))
+
+  subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
+  IBI_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/IBI.csv")
+  IBI_data = read.csv(IBI_fn)
+  hrv = RMSSD_calc(IBI_data, 3)
+  IBI_data[1:length(hrv),3] = hrv
+  colnames(IBI_data)[3] = "HRV"
+  IBI_data = na.omit(IBI_data)
+  hrv_vals = hz_format(IBI_data, 5)
+  
+  df_hrv = data.frame(matrix(unlist(hrv_vals), nrow= length(hrv_vals$hrv_mu),
+                             ncol=2, byrow = F))
+  colnames(df_hrv) = c("hrv_wrist_mu","hrv_wrist_sd" )
+  df_hrv$ID =seq.int(nrow(df_hrv))
+  
+  feature_data_hrv = merge(feature_data, df_hrv, by="ID", all = TRUE)
+  S_df = cbind(df, IBI_data)
+  ALL_df = rbind(ALL_df, S_df)
+}
+
+```
+
+```{r}
+# IBI and HRV and HR
+
+# EDA
+# # ggpairs
+# # look for interactions
+# # pca (clusters)
+# # clusters
+
+# models
+# # frequentist Logistic regression 
+# # interactions
+# # stepwise selection/diff selection methods (sensitivity analysis)
+# # (DT and/or Randon Forest and/or Linear Discriminant Analysis and/or NN and/or KNN and/or GMM)
+# # for ML (put everything) use feature (variable) importance
+
+# CROSS VALIDATION
+# # amy said LOOCV will be computationally expensive
+# # start with LOOCV
+# # test-train
 ```
