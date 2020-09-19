@@ -59,10 +59,12 @@ subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 
 ```{r}
 features_all_modalities = function(fn, win_size) {
-  df = read.csv(fn)
+  df_all = read.csv(fn) %>%
+    mutate(ACC_chest_3D = ACC_chest_X+ACC_chest_Y+ACC_chest_Z) %>%
+    mutate(ACC_wrist_3D = ACC_wrist_x+ACC_wrist_y+ACC_wrist_z)
   drops <- c("X", "Label", "subject")
-  df = df[ , !(names(df) %in% drops)]
-  replace_rows = nrow(df)-3
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1], width = win_size*4, by = 1, FUN = mean, align = "left"))
   features_df <- data.frame(matrix(ncol = ncol(df)*5, nrow = replace_rows))
   new_names = sapply(1:length(df), function(c) {
     c(paste0(colnames(df)[c],"_mean"),
@@ -112,99 +114,121 @@ features_all_modalities = function(fn, win_size) {
     # 
     # features_df = cbind(features_df, mu_vals)
   }
+  
  # make sure merge label, subject back into feature dataframe
+  features_df$Label = df_all[1:replace_rows, "Label"]
+  features_df$Subject = df_all[1:replace_rows, "subject"]
   return(features_df)
 }
 
-feature_data = features_all_modalities(subject_data[9], 1)
+# feature_data = features_all_modalities(subject_data[9], 5)
 
 ```
 
 ```{r}
-IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
+# IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
+# 
+# RMSSD_calc = function(df, peaks) {
+#   # for (i in 1:nrow(df)) {
+#   #   if (i <= nrow(df)-peaks)
+#   vals = rollapply(df[,2], width = peaks, by = 1, FUN = rmssd, align = "left")
+#   #}
+#   
+#   return(vals)
+# }
+# 
+# hrv = RMSSD_calc(IBI_data_3, 3)
+# IBI_data_3[1:length(hrv),3] = hrv
+# colnames(IBI_data_3)[3] = "HRV"
+# IBI_data_3 = na.omit(IBI_data_3)
+```
 
-RMSSD_calc = function(df, peaks) {
-  # for (i in 1:nrow(df)) {
-  #   if (i <= nrow(df)-peaks)
-  vals = rollapply(df[,2], width = peaks, by = 1, FUN = rmssd, align = "left")
-  #}
+```{r}
+# hz_format = function(df, win_size) {
+#   mu_vals = NULL
+#   sd_vals = NULL
+#   
+#   for (i in 1:nrow(df)) {
+#     #if (i <= nrow(df)-win_size)
+#     nexttime = df[i,1] + win_size
+#       # browser()
+#     
+#     #print(nexttime)
+#     if (i+1 <= nrow(df)) {
+# 
+#     for (j in i+1:nrow(df)) {
+#            # print(df[j,1])
+#       if (!is.na(df[j,1])) {
+#       #   print(df[j,1]==nexttime)
+#       # if (df[j,1]==nexttime) {
+#       #   stoprow = j
+#       # }
+#         # print(i)
+#         # print(j)
+#         # print(df[j,1])
+#         # print(nexttime)
+#       if ((df[j,1] >= nexttime) & (df[j-1,1]<nexttime)) {
+#         stoprow = j-1
+#       }
+#       }
+#     }
+#     mu_vals = c(mu_vals, mean(df[i:stoprow, 3]))
+#     sd_vals = c(sd_vals, sqrt(var(df[i:stoprow, 3])))
+#     
+#     }
+#   }
+#   
+#   return(list(hrv_mu = mu_vals, hrv_sd = sd_vals))
+# }
+
+# test = hz_format(IBI_data_3, 5)
+```
+
+
+```{r}
+HR_calc = function(df, win_size) {
+  mu_vals = rollapply(df, width = win_size, by = 1, FUN = mean, align = "left")
+  sd_vals = rollapply(df, width = win_size, by = 1, FUN = sd, align = "left")
+  min_vals = rollapply(df, width = win_size, by = 1, FUN = min, align = "left")
+  max_vals = rollapply(df, width = win_size, by = 1, FUN = max, align = "left")
+  range_vals = max_vals-min_vals
   
-  return(vals)
+  return(list(mu = rep(mu_vals,each=4), sd = rep(sd_vals,each=4),
+              min = rep(min_vals,each=4), max = rep(max_vals,each=4),
+              range = rep(range_vals,each=4)))
 }
-
-hrv = RMSSD_calc(IBI_data_3, 3)
-IBI_data_3[1:length(hrv),3] = hrv
-colnames(IBI_data_3)[3] = "HRV"
-IBI_data_3 = na.omit(IBI_data_3)
 ```
 
-```{r}
-hz_format = function(df, win_size) {
-  mu_vals = NULL
-  sd_vals = NULL
-  
-  for (i in 1:nrow(df)) {
-    #if (i <= nrow(df)-win_size)
-    nexttime = df[i,1] + win_size
-      # browser()
-    
-    #print(nexttime)
-    if (i+1 <= nrow(df)) {
-
-    for (j in i+1:nrow(df)) {
-           # print(df[j,1])
-      if (!is.na(df[j,1])) {
-      #   print(df[j,1]==nexttime)
-      # if (df[j,1]==nexttime) {
-      #   stoprow = j
-      # }
-        # print(i)
-        # print(j)
-        # print(df[j,1])
-        # print(nexttime)
-      if ((df[j,1] >= nexttime) & (df[j-1,1]<nexttime)) {
-        stoprow = j-1
-      }
-      }
-    }
-    mu_vals = c(mu_vals, mean(df[i:stoprow, 3]))
-    sd_vals = c(sd_vals, sqrt(var(df[i:stoprow, 3])))
-    
-    }
-  }
-  
-  return(list(hrv_mu = mu_vals, hrv_sd = sd_vals))
-}
-
-test = hz_format(IBI_data_3, 5)
-```
-
-
-```{r}
+```{r run-all-featengine-combine }
 ALL_df = NULL
+#test = subject_data[1:2]
 for (i in 1:length(subject_data)) {
+  print(i)
   feature_data = features_all_modalities(subject_data[i], 1)
-  feature_data$ID <- seq.int(nrow(feature_data))
+  #feature_data$ID <- seq.int(nrow(feature_data))
 
   subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
-  IBI_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/IBI.csv")
-  IBI_data = read.csv(IBI_fn)
-  hrv = RMSSD_calc(IBI_data, 3)
-  IBI_data[1:length(hrv),3] = hrv
-  colnames(IBI_data)[3] = "HRV"
-  IBI_data = na.omit(IBI_data)
-  hrv_vals = hz_format(IBI_data, 5)
+  HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv")
+  HR_data = read.csv(HR_fn)[-1,]
+   hr = HR_calc(HR_data, 5)
+  #HR_data[1:length(hrv),3] = hrv
+  #colnames(HR_data)[3] = "HRV"
+  #HR_data = na.omit(HR_data)
+  #hr_vals = hz_format(HR_data, 5)
   
-  df_hrv = data.frame(matrix(unlist(hrv_vals), nrow= length(hrv_vals$hrv_mu),
-                             ncol=2, byrow = F))
-  colnames(df_hrv) = c("hrv_wrist_mu","hrv_wrist_sd" )
-  df_hrv$ID =seq.int(nrow(df_hrv))
+  df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
+                             ncol=5, byrow = F))
+  colnames(df_hr) = c("hr_wrist_mu","hr_wrist_sd", "hr_wrist_min", "hr_wrist_max", "hr_wrist_range")
+  df_hr$ID =seq.int(nrow(df_hr))
   
-  feature_data_hrv = merge(feature_data, df_hrv, by="ID", all = TRUE)
-  S_df = cbind(df, IBI_data)
+  feature_data = feature_data[-c(1:40),]
+  feature_data$ID <- seq.int(nrow(feature_data))
+  # df <- df[-c(1:3),]
+
+  S_df = merge(feature_data, df_hr, by="ID")
   ALL_df = rbind(ALL_df, S_df)
 }
-
+write.csv(ALL_df, "master_df.csv")
 ```
 
 ```{r}
