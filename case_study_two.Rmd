@@ -14,16 +14,15 @@ library(varian)
 library(tidyverse)
 library(corrplot)
 library(glmnet)
+library("FactoMineR")
 ```
 
 ## Import Data
 
-```{r}
+```{r import-file-names}
 file_list <- list.files()
 subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 ```
-
-
 
 ```{r}
 # features_all_modalities = function(fn, win_size) {
@@ -59,7 +58,7 @@ subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 # }
 ```
 
-```{r}
+```{r calc-stats-features}
 features_all_modalities = function(fn, win_size) {
   df_all = read.csv(fn) %>%
     mutate(ACC_chest_3D = ACC_chest_X+ACC_chest_Y+ACC_chest_Z) %>%
@@ -127,7 +126,7 @@ features_all_modalities = function(fn, win_size) {
 
 ```
 
-```{r}
+```{r IBI-to-hrv}
 # IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
 # 
 # RMSSD_calc = function(df, peaks) {
@@ -145,7 +144,7 @@ features_all_modalities = function(fn, win_size) {
 # IBI_data_3 = na.omit(IBI_data_3)
 ```
 
-```{r}
+```{r hrv-to-hz}
 # hz_format = function(df, win_size) {
 #   mu_vals = NULL
 #   sd_vals = NULL
@@ -186,8 +185,7 @@ features_all_modalities = function(fn, win_size) {
 # test = hz_format(IBI_data_3, 5)
 ```
 
-
-```{r}
+```{r hr-calc}
 HR_calc = function(df, win_size) {
   mu_vals = rollapply(df, width = win_size, by = 1, FUN = mean, align = "left")
   sd_vals = rollapply(df, width = win_size, by = 1, FUN = sd, align = "left")
@@ -252,6 +250,30 @@ cormatrix = cor(remove_select_cov_nb)
 corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
 ```
 
+```{r pca}
+scaled_biological = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
+res.pca <- PCA(remove_select_cov_nb, graph = FALSE)
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+```{r pca-cont}
+var <- get_pca_var(res.pca)
+corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb))
+
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+```
+PCA basically confirms what we know about the correlations among the variables: we see two components that contains a lot of the ACC variables and another component that combines temperature and electrodermal activity (which makes sense because conditions such as sweating is correlated with temperature). It also makes sense that ECG and respiratory variables would be put with hear rate variables into a component.
+
+```{r distrib-vs-label}
+ggplot()
+
+```
 
 ```{r testtrainsplit}
 set.seed(123)
@@ -293,7 +315,7 @@ We know stuff is correlated, so we don't want to use everything
 Pick: acc_3D, EDA_min, EDA_max, temp_min, hr_mean, resp_sd
 from a physiological standpoint, we know sweat (EDA), heating up (temp), breathing (resp), heart beating (hr),some justofication for ACC makes it seem we should include those in some capcity in our model
 
-```{r}
+```{r domain-driven}
 domain.model = glm(Label ~ ACC_chest_3D_mean+ACC_chest_3D_sd+ACC_chest_3D_min+ACC_chest_3D_max+
                    EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max+Subject
                    , family = binomial(link="logit"), data=train)
@@ -341,7 +363,7 @@ mean(test$Label==pred.test)
 # WORK
 # EDA
 # # ggpairs
-# # pca (clusters) (Cathy)
+# # pca (Cathy)
 # # clusters (Malavi)
 # # plot by subject for interactions (Malavi)
 # # 0/1 label boxplots versus (Cathy)
