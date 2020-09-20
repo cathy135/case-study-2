@@ -252,7 +252,7 @@ corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.
 
 ```{r pca}
 scaled_biological = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
-res.pca <- PCA(remove_select_cov_nb, graph = FALSE)
+res.pca <- PCA(remove_select_cov_nb, graph = FALSE, ncp = 5)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
@@ -271,9 +271,17 @@ fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
 PCA basically confirms what we know about the correlations among the variables: we see two components that contains a lot of the ACC variables and another component that combines temperature and electrodermal activity (which makes sense because conditions such as sweating is correlated with temperature). It also makes sense that ECG and respiratory variables would be put with hear rate variables into a component.
 
 ```{r distrib-vs-label}
-ggplot()
+varvslabel <- function(var){
+  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Label, 
+                                 group = remove_select_cov$Label)) +
+    geom_boxplot() +
+    labs(x ="Label", y = as.name(var))
+}
 
+lapply(names(remove_select_cov_nb), varvslabel)
 ```
+
+It appears from these boxplots (prob most all except Electrodermal Activity to appendix), the distribution of physiological measures don't differ much between the stress and amusement states, but the boxplot for EDA shows a difference in distribution.
 
 ```{r testtrainsplit}
 set.seed(123)
