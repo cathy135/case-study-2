@@ -325,6 +325,14 @@ pred.test = full.model %>% predict(test, type= "response")
 pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test$Label==pred.test)
+
+# SUBJECT ONLY MODEL
+subj.model = glm(Label ~Subject, family = binomial(link="logit"), data=train)
+
+pred.test = subj.model %>% predict(test, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test$Label==pred.test)
 ```
 
 ```{r}
