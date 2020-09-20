@@ -14,7 +14,7 @@ library(varian)
 library(tidyverse)
 library(corrplot)
 library(glmnet)
-library("FactoMineR")
+library(FactoMineR)
 ```
 
 ## Import Data
@@ -283,6 +283,19 @@ lapply(names(remove_select_cov_nb), varvslabel)
 
 It appears from these boxplots (prob most all except Electrodermal Activity to appendix), the distribution of physiological measures don't differ much between the stress and amusement states, but the boxplot for EDA shows a difference in distribution.
 
+
+```{r subject-vs-covariates}
+varvssubj <- function(var){
+  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Subject, 
+                                 group = remove_select_cov$Subject)) +
+    geom_boxplot() +
+    labs(x ="Subject", y = as.name(var))
+}
+
+lapply(names(remove_select_cov_nb), varvssubj)
+```
+For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference in distribution across the subjects. For ECG and BVP variables, only the sd measure showed differences across subjects.
+
 ```{r testtrainsplit}
 set.seed(123)
 smp_size <- floor(0.75 * nrow(remove_select_cov))
@@ -376,12 +389,10 @@ mean(test$Label==pred.test)
 # # plot by subject for interactions (Malavi)
 # # 0/1 label boxplots versus (Cathy)
 
-
 # models
-# # frequentist Logistic regression 
-# # interactions
+# # frequentist Logistic regression w/ interactions
 # # stepwise selection/diff selection methods (sensitivity analysis)
-# # (DT and/or Randon Forest and/or Linear Discriminant Analysis and/or NN and/or KNN and/or GMM)
+# # (DT, Randon Forest. Linear Discriminant Analysis, KNN)
 # # for ML (put everything) use feature (variable) importance
 
 # WORK
@@ -390,6 +401,5 @@ mean(test$Label==pred.test)
 
 # CROSS VALIDATION
 # # amy said LOOCV will be computationally expensive
-# # start with LOOCV
-# # test-train
+# # start with LOOCV (one person)
 ```
