@@ -42,8 +42,8 @@ subject_data <- c("df_S2.csv", "df_S3.csv", "df_S4.csv", "df_S5.csv", "df_S6.csv
 ```{r calc-stats-features}
 features_all_modalities = function(fn, win_size) {
   df_all = read.csv(fn) %>%
-    mutate(ACC_chest_3D = ACC_chest_X+ACC_chest_Y+ACC_chest_Z) %>%
-    mutate(ACC_wrist_3D = ACC_wrist_x+ACC_wrist_y+ACC_wrist_z)
+    mutate(ACC_chest_3D = sqrt(ACC_chest_X^2+ACC_chest_Y^2+ACC_chest_Z^2)) %>%
+    mutate(ACC_wrist_3D = sqrt(ACC_wrist_x^2+ACC_wrist_y^2+ACC_wrist_z^2))
   drops <- c("X", "Label", "subject")
   df = df_all[ , !(names(df_all) %in% drops)]
   replace_rows =  length(rollapply(df[,1], width = win_size*4, by = 1, FUN = mean, align = "left"))

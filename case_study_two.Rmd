@@ -220,6 +220,8 @@ ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
 remove_select_cov = ALL_df %>%
   select(-contains("ACC_wrist")) %>%
 
+remove_select_cov$Label = factor(remove_select_cov$Label )  
+
   select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
   select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
     select(-contains("min")) %>%
@@ -236,13 +238,16 @@ cormatrix = cor(remove_select_cov_nb)
 corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
 ```
 
+# PCA
+
 ```{r pca}
-scaled_biological = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
-res.pca <- PCA(remove_select_cov_nb, graph = FALSE, ncp = 6)
+scaled_select_cov_nb = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
+res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 5)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
+
 
 ```{r pca-cont}
 var <- get_pca_var(res.pca)
@@ -255,6 +260,30 @@ fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
 ```
 PCA basically confirms what we know about the correlations among the variables: we see two components that contains a lot of the ACC variables and another component that combines temperature and electrodermal activity (which makes sense because conditions such as sweating is correlated with temperature). It also makes sense that ECG and respiratory variables would be put with hear rate variables into a component.
+
+```{r}
+pca_vals <- as.data.frame(res.pca$ind$coord)
+pca_vals$Label = remove_select_cov$Label
+pca_vals$Subject = remove_select_cov$Subject
+```
+
+```{r}
+smp_size <- floor(0.75 * nrow(pca_vals))
+train_ind <- sample(seq_len(nrow(pca_vals)), size = smp_size)
+train_pca <- pca_vals[train_ind, ]
+
+test_pca <- pca_vals[-train_ind, ]
+
+pca.model = glm(Label ~ ., family = binomial(link="logit"), data=train_pca)
+
+
+summary(pca.model)
+
+pred.test = pca.model %>% predict(test_pca, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_pca$Label==pred.test)
+```
 
 ```{r distrib-vs-label}
 varvslabel <- function(var){
