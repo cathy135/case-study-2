@@ -54,9 +54,10 @@ subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 #     }
 #  #make sure merge label subject back into feature dataframe
 #   }
-#   
+#   i
 # }
 ```
+
 
 ```{r calc-stats-features}
 features_all_modalities = function(fn, win_size) {
@@ -106,14 +107,6 @@ features_all_modalities = function(fn, win_size) {
     cindx = which(colnames(features_df)==new_col_name)
     features_df[, cindx] = min_vals
     
-    # finding range
-    # range_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = range, align = "left")
-    # new_col_name = paste0(colnames(df)[c],"_range")
-    # cindx = which(colnames(features_df)==new_col_name)
-    # features_df[, cindx] = range_vals
-    
-    # 
-    # features_df = cbind(features_df, mu_vals)
   }
   
  # make sure merge label, subject back into feature dataframe
@@ -121,10 +114,9 @@ features_all_modalities = function(fn, win_size) {
   features_df$Subject = df_all[1:replace_rows, "subject"]
   return(features_df)
 }
-
-# feature_data = features_all_modalities(subject_data[9], 5)
-
 ```
+
+    
 
 ```{r IBI-to-hrv}
 # IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
@@ -187,35 +179,26 @@ features_all_modalities = function(fn, win_size) {
 
 ```{r hr-calc}
 HR_calc = function(df, win_size) {
-  mu_vals = rollapply(df, width = win_size, by = 1, FUN = mean, align = "left")
-  sd_vals = rollapply(df, width = win_size, by = 1, FUN = sd, align = "left")
-  min_vals = rollapply(df, width = win_size, by = 1, FUN = min, align = "left")
-  max_vals = rollapply(df, width = win_size, by = 1, FUN = max, align = "left")
-  # range_vals = max_vals-min_vals
-  
-  return(list(mu = rep(mu_vals,each=4), sd = rep(sd_vals,each=4),
-              min = rep(min_vals,each=4), max = rep(max_vals,each=4)))#,
-              #range = rep(range_vals,each=4)))
+  df <- df[rep(seq_len(nrow(df)), each = 4), ]
+  mu_vals = rollapply(df, width = win_size*4, by = 1, FUN = mean, align = "left")
+  sd_vals = rollapply(df, width = win_size*4, by = 1, FUN = sd, align = "left")
+  min_vals = rollapply(df, width = win_size*4, by = 1, FUN = min, align = "left")
+  max_vals = rollapply(df, width = win_size*4, by = 1, FUN = max, align = "left")
+
+  return(list(mu = mu_vals, sd = sd_vals,
+              min = min_vals, max = max_vals))
 }
 ```
 
 ```{r run-all-featengine-combine }
 ALL_df = NULL
-#test = subject_data[1:2]
 for (i in 1:length(subject_data)) {
-  print(i)
-  feature_data = features_all_modalities(subject_data[i], 1)
-  #feature_data$ID <- seq.int(nrow(feature_data))
-
+  feature_data = features_all_modalities(subject_data[i], 5) #CHANGE FILE PATH 
   subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
-  HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv")
+  HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
   HR_data = read.csv(HR_fn)[-1,]
-   hr = HR_calc(HR_data, 5)
-  #HR_data[1:length(hrv),3] = hrv
-  #colnames(HR_data)[3] = "HRV"
-  #HR_data = na.omit(HR_data)
-  #hr_vals = hz_format(HR_data, 5)
-  
+  hr = HR_calc(as.data.frame(HR_data), 5)
+
   df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
                              ncol=4, byrow = F))
   colnames(df_hr) = c("hr_wrist_mu","hr_wrist_sd", "hr_wrist_min", "hr_wrist_max")#, "hr_wrist_range")
@@ -223,7 +206,6 @@ for (i in 1:length(subject_data)) {
   
   feature_data = feature_data[-c(1:40),]
   feature_data$ID <- seq.int(nrow(feature_data))
-  # df <- df[-c(1:3),]
 
   S_df = merge(feature_data, df_hr, by="ID")
   ALL_df = rbind(ALL_df, S_df)
