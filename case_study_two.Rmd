@@ -61,13 +61,13 @@ subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 
 
 ```{r calc-stats-features}
-features_all_modalities = function(fn, win_size) {
+features_all_modalities = function(fn, win_size, shift) {
   df_all = read.csv(fn) %>%
     mutate(ACC_chest_3D = sqrt(ACC_chest_X^2+ACC_chest_Y^2+ACC_chest_Z^2)) %>%
     mutate(ACC_wrist_3D = sqrt(ACC_wrist_x^2+ACC_wrist_y^2+ACC_wrist_z^2))
   drops <- c("X", "Label", "subject")
   df = df_all[ , !(names(df_all) %in% drops)]
-  replace_rows =  length(rollapply(df[,1], width = win_size*4, by = 1, FUN = mean, align = "left"))
+  replace_rows =  length(rollapply(df[,1], width = win_size*4, by = shift, FUN = mean, align = "left"))
   features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
   new_names = sapply(1:length(df), function(c) {
     c(paste0(colnames(df)[c],"_mean"),
@@ -85,25 +85,25 @@ features_all_modalities = function(fn, win_size) {
   for (c in 1:length(df)) {
     
     # finding mu
-    mu_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = mean, align = "left")
+    mu_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = mean, align = "left")
     new_col_name = paste0(colnames(df)[c],"_mean")
     cindx = which(colnames(features_df)==new_col_name)
     features_df[, cindx] = mu_vals
     
     # finding sd
-    sd_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = var, align = "left")
+    sd_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = var, align = "left")
     new_col_name = paste0(colnames(df)[c],"_sd")
     cindx = which(colnames(features_df)==new_col_name)
     features_df[, cindx] = sqrt(sd_vals)
     
     # finding max
-    max_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = max, align = "left")
+    max_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = max, align = "left")
     new_col_name = paste0(colnames(df)[c],"_max")
     cindx = which(colnames(features_df)==new_col_name)
     features_df[, cindx] = max_vals
     
     # finding min
-    min_vals = rollapply(df[,c], width = win_size*4, by = 1, FUN = min, align = "left")
+    min_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = min, align = "left")
     new_col_name = paste0(colnames(df)[c],"_min")
     cindx = which(colnames(features_df)==new_col_name)
     features_df[, cindx] = min_vals
@@ -179,12 +179,12 @@ features_all_modalities = function(fn, win_size) {
 ```
 
 ```{r hr-calc}
-HR_calc = function(df, win_size) {
+HR_calc = function(df, win_size, shift) {
   df <- df[rep(seq_len(nrow(df)), each = 4), ]
-  mu_vals = rollapply(df, width = win_size*4, by = 1, FUN = mean, align = "left")
-  sd_vals = rollapply(df, width = win_size*4, by = 1, FUN = sd, align = "left")
-  min_vals = rollapply(df, width = win_size*4, by = 1, FUN = min, align = "left")
-  max_vals = rollapply(df, width = win_size*4, by = 1, FUN = max, align = "left")
+  mu_vals = rollapply(df, width = win_size*4, by = shift, FUN = mean, align = "left")
+  sd_vals = rollapply(df, width = win_size*4, by = shift, FUN = sd, align = "left")
+  min_vals = rollapply(df, width = win_size*4, by = shift, FUN = min, align = "left")
+  max_vals = rollapply(df, width = win_size*4, by = shift, FUN = max, align = "left")
 
   return(list(mu = mu_vals, sd = sd_vals,
               min = min_vals, max = max_vals))
@@ -194,11 +194,11 @@ HR_calc = function(df, win_size) {
 ```{r run-all-featengine-combine }
 ALL_df = NULL
 for (i in 1:length(subject_data)) {
-  feature_data = features_all_modalities(subject_data[i], 5) #CHANGE FILE PATH 
+  feature_data = features_all_modalities(subject_data[i], 5, 1) #CHANGE FILE PATH 
   subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
   HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
   HR_data = read.csv(HR_fn)[-1,]
-  hr = HR_calc(as.data.frame(HR_data), 5)
+  hr = HR_calc(as.data.frame(HR_data), 5, 1)
 
   df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
                              ncol=4, byrow = F))
@@ -216,17 +216,20 @@ write.csv(ALL_df, "master_df.csv")
 
 ```{r corrplot}
 ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
-remove = c("ACC_wrist_x", "ACC_wrist_y","ACC_wrist_z", "ACC_wrist_3D", "EDA_", "TEMP_chest")
 
 remove_select_cov = ALL_df %>%
   select(-contains("ACC_wrist")) %>%
+
   select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
-  select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) 
+  select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
+    select(-contains("min")) %>%
+  select(-contains("max")) 
+
+remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
 
 
 non_biological = c("Label", "Subject")
 remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
-remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
 
 
 cormatrix = cor(remove_select_cov_nb)
@@ -289,10 +292,27 @@ train <- remove_select_cov[train_ind, ]
 # temp_centered$Label = train$Label
 # train = temp_centered
 test <- remove_select_cov[-train_ind, ]
-# temp = test %>% select(-Label, -Subject)
+# test = test %>% select(-Label, -Subject)
 # temp_centered = data.frame(scale(temp, center=TRUE, scale = FALSE)) 
 # temp_centered$Label = test$Label
 # test = temp_centered
+
+table(train$Label, train$Subject)
+table(test$Label, test$Subject)
+```
+
+```{r trying-to-solve-separation}
+
+
+
+
+  temp = remove_select_cov %>%
+    filter(Subject == "S10")
+  variability_plots = function(var) { ggplot(temp, aes_(y=as.name(var), x = temp$Label, group = temp$Label)) + geom_boxplot() + labs(x = "Label", y = as.name(var)) }
+lapply(names(temp), variability_plots)
+                 
+   #bplist = c(bplist, plist)              
+
 ```
 
 ```{r glmnet-data-driven}
@@ -317,13 +337,39 @@ Now, let's use a domain driven approach.
 We know stuff is correlated, so we don't want to use everything
 
 Pick: acc_3D, EDA_min, EDA_max, temp_min, hr_mean, resp_sd
-from a physiological standpoint, we know sweat (EDA), heating up (temp), breathing (resp), heart beating (hr),some justofication for ACC makes it seem we should include those in some capcity in our model
+from a physiological standpoint, we know sweat (EDA), heating up (temp), breathing (resp), heart beating (hr),some justification for ACC makes it seem we should include those in some capcity in our model
 
 ```{r domain-driven}
-domain.model = glm(Label ~ ACC_chest_3D_mean+ACC_chest_3D_sd+ACC_chest_3D_min+ACC_chest_3D_max+
-                   EDA_wrist_mean+EDA_wrist_sd+EDA_wrist_min+EDA_wrist_max+TEMP_wrist_mean+TEMP_wrist_sd+TEMP_wrist_min+TEMP_wrist_max+Resp_mean+Resp_sd+Resp_min+Resp_max+hr_wrist_mu+hr_wrist_sd+hr_wrist_min+hr_wrist_max+Subject
+set.seed(123)
+domain.model = glm(Label ~ 1#+ #ACC_chest_3D_mean+ACC_chest_3D_sd#+ACC_chest_3D_min+ACC_chest_3D_max
+                #   +EDA_wrist_mean+EDA_wrist_sd#+EDA_wrist_min+EDA_wrist_max
+                #   +TEMP_wrist_mean+TEMP_wrist_sd#+TEMP_wrist_min+TEMP_wrist_max
+                #   +Resp_mean+Resp_sd#+Resp_min+Resp_max
+                #   +hr_wrist_mu+hr_wrist_sd#+hr_wrist_min+hr_wrist_max
+                #   +Subject:ACC_chest_3D_mean+Subject:ACC_chest_3D_sd#+Subject:ACC_chest_3D_min+Subject:ACC_chest_3D_max
                    , family = binomial(link="logit"), data=train)
 
+install.packages("lme4")
+library(lme4)
+
+
+
+fixed.domain.model = glmer(Label ~ #scale(ACC_chest_3D_mean)
+                            # +scale(ACC_chest_3D_sd)#+ACC_chest_3D_min+ACC_chest_3D_max
+                  # +scale(EDA_wrist_mean)#+scale(EDA_wrist_sd)#+EDA_wrist_min+EDA_wrist_max
+                   #+scale(TEMP_wrist_mean)+scale(TEMP_wrist_sd)#+TEMP_wrist_min+TEMP_wrist_max
+                   #+scale(Resp_mean)+scale(Resp_sd)#+Resp_min+Resp_max
+                   #+scale(hr_wrist_mu)
+                   #+scale(hr_wrist_sd)   +
+                    (1|Subject)
+     , data= train,family=binomial(link="logit"))
+
+summary(fixed.domain.model)
+
+pred.test = fixed.domain.model %>% predict(test, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(testlabels==pred.test)
 #+Subject#+ACC_chest_3D_mean*Subject+
                      # ACC_chest_3D_mean*Subject+
                      # ACC_chest_3D_mean*Subject+
@@ -339,11 +385,13 @@ summary(domain.model)
 pred.test = domain.model %>% predict(test, type= "response")
 pred.test = ifelse(pred.test>0.5, 1,0)
 
-mean(test$Label==pred.test)
+mean(testlabels==pred.test)
 
 # step.domain.model = domain.model %>% stepAIC(trace=FALSE)
 # summary(step.domain.model)
+```
 
+```{r}
 # SUBJECT INCLUDED HERE
 full.model = glm(Label ~., family = binomial(link="logit"), data=train)
 
