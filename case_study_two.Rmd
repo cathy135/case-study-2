@@ -15,6 +15,7 @@ library(tidyverse)
 library(corrplot)
 library(glmnet)
 library(FactoMineR)
+library(factoextra)
 ```
 
 ## Import Data
@@ -234,7 +235,7 @@ corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.
 
 ```{r pca}
 scaled_biological = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
-res.pca <- PCA(remove_select_cov_nb, graph = FALSE, ncp = 5)
+res.pca <- PCA(remove_select_cov_nb, graph = FALSE, ncp = 6)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
