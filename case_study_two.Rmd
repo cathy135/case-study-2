@@ -267,15 +267,20 @@ pca_vals$Label = remove_select_cov$Label
 pca_vals$Subject = remove_select_cov$Subject
 ```
 
-```{r}
+```{r }
 smp_size <- floor(0.75 * nrow(pca_vals))
 train_ind <- sample(seq_len(nrow(pca_vals)), size = smp_size)
 train_pca <- pca_vals[train_ind, ]
 
 test_pca <- pca_vals[-train_ind, ]
 
-pca.model = glm(Label ~ ., family = binomial(link="logit"), data=train_pca)
+# model with no main effect for Subject but with interactions (there is warning)
+pca.model = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject+Dim.2:Subject+Dim.3:Subject+Dim.4:Subject+Dim.5:Subject#+#(1|Subject)#
+                    , family = binomial(link="logit"), data=train_pca)
 
+# model with random effect for intercept for Subject (no warning)
+pca.model = glmer(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+(1|Subject)
+                    , family = binomial(link="logit"), data=train_pca)
 
 summary(pca.model)
 
