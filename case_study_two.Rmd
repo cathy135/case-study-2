@@ -211,6 +211,7 @@ for (i in 1:length(subject_data)) {
   S_df = merge(feature_data, df_hr, by="ID")
   ALL_df = rbind(ALL_df, S_df)
 }
+ALL_df = ALL_df %>% filter(Label %in% c("2","3"))
 write.csv(ALL_df, "master_df.csv")
 ```
 
