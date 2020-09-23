@@ -220,12 +220,9 @@ ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
 
 remove_select_cov = ALL_df %>%
   select(-contains("ACC_wrist")) %>%
-
-remove_select_cov$Label = factor(remove_select_cov$Label )  
-
   select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
   select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
-    select(-contains("min")) %>%
+  select(-contains("min")) %>%
   select(-contains("max")) 
 
 remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
