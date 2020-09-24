@@ -16,6 +16,7 @@ library(corrplot)
 library(glmnet)
 library(FactoMineR)
 library(factoextra)
+library(MASS)
 ```
 
 ## Import Data
@@ -218,20 +219,25 @@ write.csv(ALL_df, "master_df.csv")
 ```{r corrplot}
 ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
 
+# get rid of chest EDA and temp and all min max (underdispersion)
 remove_select_cov = ALL_df %>%
   select(-contains("ACC_wrist")) %>%
   select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
   select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
+  select(-contains("BVP")) %>%
+  select(-contains("ECG")) %>%
   select(-contains("min")) %>%
-  select(-contains("max")) 
+  select(-contains("max")) %>%
+  select(-contains("ACC_chest_X")) %>%
+  select(-contains("ACC_chest_Y")) %>%
+  select(-contains("ACC_chest_Z"))
 
 remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
-
 
 non_biological = c("Label", "Subject")
 remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
 
-
+# maybe reorder the variables
 cormatrix = cor(remove_select_cov_nb)
 corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
 ```
@@ -240,6 +246,10 @@ corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.4, number.
 
 ```{r pca}
 scaled_select_cov_nb = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
+
+# scaled_select_cov_nb %>% scaled_select_cov_nb
+#   filter()
+  
 res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 5)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
@@ -256,7 +266,24 @@ fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 6, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 7, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 8, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 9, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 10, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 11, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 12, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 13, top = 10)
 ```
+Dim1: very obviously ACC 
+Dim2: EDA and temp + some ACC
+Dim3: ECG BVP
+Dim4: ECG EDA
+Dim5: HR
+
+
+starting from dim 8 from a domain perspective sutff doesn't matter
+
 PCA basically confirms what we know about the correlations among the variables: we see two components that contains a lot of the ACC variables and another component that combines temperature and electrodermal activity (which makes sense because conditions such as sweating is correlated with temperature). It also makes sense that ECG and respiratory variables would be put with hear rate variables into a component.
 
 ```{r}
@@ -269,21 +296,23 @@ pca_vals$Subject = remove_select_cov$Subject
 smp_size <- floor(0.75 * nrow(pca_vals))
 train_ind <- sample(seq_len(nrow(pca_vals)), size = smp_size)
 train_pca <- pca_vals[train_ind, ]
-
 test_pca <- pca_vals[-train_ind, ]
 
-# model with main effect for Subject but no interactions (there is warning)
+
+
+# FULL PCA MODEL model with main effect for Subject but no interactions (there is warning)
 pca.model = glm(Label ~ ., family = binomial(link="logit"), data=train_pca)
 
-# model with no main effect for Subject but with interactions
-pca.model = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject#+Dim.2:Subject
-                +Dim.3:Subject#+Dim.4:Subject+Dim.5:Subject
-                    , family = binomial(link="logit"), data=train_pca)
+pca.model.nsubj = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
 
-# model with random effect for intercept for Subject (no warning)
-pca.model = glmer(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+(1|Subject)
-                    , family = binomial(link="logit"), data=train_pca)
 
+# HOPEFULLY THE RIGHT ONE model with no main effect for Subject but with interactions
+pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
+                  +Dim.2:Subject
+                  +Dim.3:Subject
+                  +Dim.4:Subject
+                  +Dim.5:Subject
+                    , family = binomial(link="logit"), data=train_pca)
 summary(pca.model)
 
 pred.test = pca.model %>% predict(test_pca, type= "response")
@@ -291,6 +320,152 @@ pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test_pca$Label==pred.test)
 ```
+
+```{r}
+remove_select_cov_nsubj = remove_select_cov %>% dplyr::select(-Subject, -Label)
+scaled_remove_select_cov = scale(remove_select_cov_nsubj, center=TRUE, scale = FALSE)
+scaled_remove_select_cov = cbind(scaled_remove_select_cov, as.data.frame(remove_select_cov$Subject), as.data.frame(remove_select_cov$Label))
+scaled_remove_select_cov = scaled_remove_select_cov %>%
+  rename(Subject = `remove_select_cov$Subject`) %>%
+  rename(Label = `remove_select_cov$Label`)
+
+train_raw <- scaled_remove_select_cov[train_ind, ]
+test_raw <- scaled_remove_select_cov[-train_ind, ]
+# OG FULL model with non-pca variables and PERF/QUASI separation
+raw.model = glm(Label ~., family = binomial(link="logit"), data=train_raw)
+
+# we have IDENTIFIABILITY issues 
+summary(raw.model)
+
+pred.test = raw.model %>% predict(test_raw, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_pca$Label==pred.test)
+
+step.raw.model = raw.model %>% stepAIC(trace=FALSE)
+summary(step.raw.model)
+# this look sus
+
+# GLMNET SUCKS
+#convert training data to matrix format
+train_raw_x = train_raw %>% 
+  dplyr::select(-Label) %>%
+  mutate(Subject = as.factor(Subject))
+
+x <- data.matrix(train_raw_x)#, nrow = nrow(train_raw_x))
+#convert class to numerical variable
+y <- train_raw$Label
+lasso.fit = glmnet(x, y, alpha = 1, family = "binomial")
+
+plot(lasso.fit)
+
+elasticnet.fit = glmnet(x, y, alpha = 0.5, family = "binomial")
+
+plot(elasticnet.fit)
+# print(lasso.fit)
+# coefficients = coef(fit, s = 0.057370)
+
+# cvfit <- cv.glmnet(x,y,alpha=1,family="binomial",type.measure = "mse")
+# plot(cvfit)
+
+# min = coef(cvfit, s = "lambda.min")
+# se1 = coef(cvfit, s = "lambda.1se")
+```
+
+
+```{r wristcorrplot}
+ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
+
+wrist_only = ALL_df %>%
+  dplyr::select(contains("wrist")) %>%
+  dplyr::select(-contains("ACC_wrist_x")) %>%
+  dplyr::select(-contains("ACC_wrist_y")) %>%
+  dplyr::select(-contains("ACC_wrist_z"))
+
+wrist_only = cbind(wrist_only, as.data.frame(ALL_df$Subject), as.data.frame(ALL_df$Label))
+wrist_only = wrist_only %>%
+  rename(Subject = `ALL_df$Subject`) %>%
+  rename(Label = `ALL_df$Label`) %>%
+  mutate(Label = ifelse(Label==2, 0, 1)) %>%
+  dplyr::select(-contains("min")) %>%
+  dplyr::select(-contains("max")) 
+
+# get rid of chest EDA and temp and all min max (underdispersion)
+# remove_select_cov = ALL_df %>%
+#   select(-contains("ACC_wrist")) %>%
+#   select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
+#   select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
+#   select(-contains("BVP")) %>%
+#   select(-contains("ECG")) %>%
+#   select(-contains("min")) %>%
+#   select(-contains("max")) %>%
+
+
+# remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
+
+non_biological = c("Label", "Subject")
+wrist_nb = wrist_only[ , !(names(wrist_only) %in% non_biological)]
+
+# maybe reorder the variables
+cormatrix = cor(wrist_nb)
+corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.6, number.cex= 10/ncol(wrist_nb))
+```
+
+# wrist PCA
+
+```{r pca}
+scaled_wrist_nb = scale(wrist_nb, center = TRUE, scale = TRUE)
+
+# scaled_select_cov_nb %>% scaled_select_cov_nb
+#   filter()
+  
+res.pca <- PCA(scaled_wrist_nb, graph = FALSE, ncp = 5)
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+
+```{r pca-cont}
+var <- get_pca_var(res.pca)
+corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb))
+
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 6, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 7, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 8, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 9, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 10, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 11, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 12, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 13, top = 10)
+```
+
+```{r run-wrist-model}
+smp_size <- floor(0.75 * nrow(wrist_only))
+train_ind <- sample(seq_len(nrow(wrist_only)), size = smp_size)
+train_wrist <- wrist_only[train_ind, ]
+test_wrist <- wrist_only[-train_ind, ]
+
+wrist.full = glm(Label ~. -Subject, family = "binomial", data = train_wrist)
+summary(wrist.full)
+
+pred.test = wrist.full %>% predict(test_wrist, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_wrist$Label==pred.test)
+
+
+# model one: combo data, pca, no subject
+# model two: wrist data, no pca, no subject
+
+# model three (interpret): combo data (hopefully), subject interactions no main effects
+```
+
 
 ```{r distrib-vs-label}
 varvslabel <- function(var){
