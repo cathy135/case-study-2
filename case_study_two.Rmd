@@ -17,6 +17,7 @@ library(glmnet)
 library(FactoMineR)
 library(factoextra)
 library(MASS)
+library(caret)
 ```
 
 ## Import Data
@@ -62,65 +63,453 @@ subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 
 
 ```{r calc-stats-features}
-features_all_modalities = function(fn, win_size, shift) {
-  df_all = read.csv(fn) %>%
-    mutate(ACC_chest_3D = sqrt(ACC_chest_X^2+ACC_chest_Y^2+ACC_chest_Z^2)) %>%
-    mutate(ACC_wrist_3D = sqrt(ACC_wrist_x^2+ACC_wrist_y^2+ACC_wrist_z^2))
+# features_all_modalities = function(fn, win_size, shift) {
+#   df_all = read.csv(fn) %>%
+#     mutate(ACC_chest_3D = sqrt(ACC_chest_X^2+ACC_chest_Y^2+ACC_chest_Z^2)) %>%
+#     mutate(ACC_wrist_3D = sqrt(ACC_wrist_x^2+ACC_wrist_y^2+ACC_wrist_z^2))
+#   drops <- c("X", "Label", "subject")
+#   df = df_all[ , !(names(df_all) %in% drops)]
+#   replace_rows =  length(rollapply(df[,1], width = win_size*4, by = shift, FUN = mean, align = "left"))
+#   features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+#   new_names = sapply(1:length(df), function(c) {
+#     c(paste0(colnames(df)[c],"_mean"),
+#       paste0(colnames(df)[c],"_sd"),
+#       #paste0(colnames(df)[c],"_range"),
+#       paste0(colnames(df)[c],"_min"),
+#       paste0(colnames(df)[c],"_max")
+#       # paste0(colnames(df)[c],"_skew")
+#       )
+#   })
+#   colnames(features_df) = new_names
+#   
+# 
+#   
+#   for (c in 1:length(df)) {
+#     
+#     # finding mu
+#     mu_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = mean, align = "left")
+#     new_col_name = paste0(colnames(df)[c],"_mean")
+#     cindx = which(colnames(features_df)==new_col_name)
+#     features_df[, cindx] = mu_vals
+#     
+#     # finding sd
+#     sd_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = var, align = "left")
+#     new_col_name = paste0(colnames(df)[c],"_sd")
+#     cindx = which(colnames(features_df)==new_col_name)
+#     features_df[, cindx] = sqrt(sd_vals)
+#     
+#     # finding max
+#     max_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = max, align = "left")
+#     new_col_name = paste0(colnames(df)[c],"_max")
+#     cindx = which(colnames(features_df)==new_col_name)
+#     features_df[, cindx] = max_vals
+#     
+#     # finding min
+#     min_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = min, align = "left")
+#     new_col_name = paste0(colnames(df)[c],"_min")
+#     cindx = which(colnames(features_df)==new_col_name)
+#     features_df[, cindx] = min_vals
+#     
+#   }
+#   
+#  # make sure merge label, subject back into feature dataframe
+#   features_df$Label = df_all[1:replace_rows, "Label"]
+#   features_df$Subject = df_all[1:replace_rows, "subject"]
+#   return(features_df)
+# }
+```
+
+
+```{r IBI-to-hrv}
+#Chest (Non ACC) for each person
+#FIRST WE NEED TO DEFINE LIST OF EACH PERSON'S CHEST INFORMATION
+
+chest_nonacc_features = function(fn) {
+  df_all = read.csv(fn) 
   drops <- c("X", "Label", "subject")
   df = df_all[ , !(names(df_all) %in% drops)]
-  replace_rows =  length(rollapply(df[,1], width = win_size*4, by = shift, FUN = mean, align = "left"))
-  features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  replace_rows =  length(rollapply(df[,1],  width = 28*5, by = 7, FUN = mean, align = "left"))
+  chest_nonacc_features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
   new_names = sapply(1:length(df), function(c) {
     c(paste0(colnames(df)[c],"_mean"),
       paste0(colnames(df)[c],"_sd"),
-      #paste0(colnames(df)[c],"_range"),
       paste0(colnames(df)[c],"_min"),
       paste0(colnames(df)[c],"_max")
-      # paste0(colnames(df)[c],"_skew")
       )
   })
-  colnames(features_df) = new_names
-  
+  colnames(chest_nonacc_features_df) = new_names
 
-  
   for (c in 1:length(df)) {
     
     # finding mu
-    mu_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = mean, align = "left")
+    mu_vals = rollapply(df[,c], width = 28*5, by = 7, FUN = mean, align = "left")
     new_col_name = paste0(colnames(df)[c],"_mean")
-    cindx = which(colnames(features_df)==new_col_name)
-    features_df[, cindx] = mu_vals
+    cindx = which(colnames(chest_nonacc_features_df)==new_col_name)
+    chest_nonacc_features_df[, cindx] = mu_vals
     
     # finding sd
-    sd_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = var, align = "left")
+    sd_vals = rollapply(df[,c],  width = 28*5, by = 7, FUN = var, align = "left")
     new_col_name = paste0(colnames(df)[c],"_sd")
-    cindx = which(colnames(features_df)==new_col_name)
-    features_df[, cindx] = sqrt(sd_vals)
+    cindx = which(colnames(chest_nonacc_features_df)==new_col_name)
+    chest_nonacc_features_df[, cindx] = sqrt(sd_vals)
     
     # finding max
-    max_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = max, align = "left")
+    max_vals = rollapply(df[,c],  width = 28*5, by = 7, FUN = max, align = "left")
     new_col_name = paste0(colnames(df)[c],"_max")
-    cindx = which(colnames(features_df)==new_col_name)
-    features_df[, cindx] = max_vals
+    cindx = which(colnames(chest_nonacc_features_df)==new_col_name)
+    chest_nonacc_features_df[, cindx] = max_vals
     
     # finding min
-    min_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = min, align = "left")
+    min_vals = rollapply(df[,c], width = 28*5, by = 7, FUN = min, align = "left")
     new_col_name = paste0(colnames(df)[c],"_min")
-    cindx = which(colnames(features_df)==new_col_name)
-    features_df[, cindx] = min_vals
+    cindx = which(colnames(chest_nonacc_features_df)==new_col_name)
+    chest_nonacc_features_df[, cindx] = min_vals
     
   }
   
  # make sure merge label, subject back into feature dataframe
-  features_df$Label = df_all[1:replace_rows, "Label"]
-  features_df$Subject = df_all[1:replace_rows, "subject"]
-  return(features_df)
+  chest_nonacc_features_df$Label = df_all[1:replace_rows, "Label"]
+  chest_nonacc_features_df$Subject = df_all[1:replace_rows, "subject"]
+  chest_nonacc_features_df$ID <- seq.int(nrow(chest_nonacc_features_df))
+
+  return(chest_nonacc_features_df)
 }
 ```
 
-    
 
-```{r IBI-to-hrv}
+```{r}
+#Chest ACC for each person
+#FIRST WE NEED TO DEFINE LIST OF EACH PERSON'S CHEST ACC INFORMATION
+
+chest_acc_features = function(fn) {
+  df_all = read.csv(fn) %>%
+    mutate(ACC_chest_3D = sqrt(ACC_chest_X^2+ACC_chest_Y^2+ACC_chest_Z^2)) 
+  drops <- c("X")
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1],  width = 28*60, by = 7, FUN = mean, align = "left"))
+  chest_acc_features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max")
+      )
+  })
+  colnames(chest_acc_features_df) = new_names
+
+  for (c in 1:length(df)) {
+    
+    # finding mu
+    mu_vals = rollapply(df[,c], width = 28*60, by = 7, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(chest_acc_features_df)==new_col_name)
+    chest_acc_features_df[, cindx] = mu_vals
+    
+    # finding sd
+    sd_vals = rollapply(df[,c],  width = 28*60, by = 7, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(chest_acc_features_df)==new_col_name)
+    chest_acc_features_df[, cindx] = sqrt(sd_vals)
+    
+    # finding max
+    max_vals = rollapply(df[,c],  width = 28*60, by = 7, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(chest_acc_features_df)==new_col_name)
+    chest_acc_features_df[, cindx] = max_vals
+    
+    # finding min
+    min_vals = rollapply(df[,c], width = 28*60, by = 7, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(chest_acc_features_df)==new_col_name)
+    chest_acc_features_df[, cindx] = min_vals
+    
+  }
+  chest_acc_features_df$ID <- seq.int(nrow(chest_acc_features_df))
+  return(chest_acc_features_df)
+}
+```
+
+```{r}
+#Wrist BVP 
+#FIRST WE NEED TO DEFINE LIST OF EACH PERSON'S BVP Data Frame
+
+wrist_bvp_features = function(fn) {
+  df_all = read.csv(fn) 
+  drops <- c("X")
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1],  width = 64*5, by = 16, FUN = mean, align = "left"))
+  wrist_bvp_features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max")
+      )
+  })
+  colnames(wrist_bvp_features_df) = new_names
+
+  for (c in 1:length(df)) {
+    
+    # finding mu
+    mu_vals = rollapply(df[,c], width = 64*5, by = 16, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(wrist_bvp_features_df)==new_col_name)
+    wrist_bvp_features_df[, cindx] = mu_vals
+    
+    # finding sd
+    sd_vals = rollapply(df[,c],  width = 64*5, by = 16, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(wrist_bvp_features_df)==new_col_name)
+    wrist_bvp_features_df[, cindx] = sqrt(sd_vals)
+    
+    # finding max
+    max_vals = rollapply(df[,c],  width = 64*5, by = 16, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(wrist_bvp_features_df)==new_col_name)
+    wrist_bvp_features_df[, cindx] = max_vals
+    
+    # finding min
+    min_vals = rollapply(df[,c], width = 64*5, by = 16, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(wrist_bvp_features_df)==new_col_name)
+    wrist_bvp_features_df[, cindx] = min_vals
+    
+  }
+  
+ # make sure merge label, subject back into feature dataframe
+  wrist_bvp_features_df$ID <- seq.int(nrow(wrist_bvp_features_df))
+  return(wrist_bvp_features_df)
+}
+
+```
+
+```{r}
+#Wrist EDA 
+#FIRST WE NEED TO DEFINE LIST OF EACH PERSON'S EDA Data Frame
+
+wrist_eda_features = function(fn) {
+  df_all = read.csv(fn) 
+  drops <- c("X")
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1],  width = 4*5, by = 1, FUN = mean, align = "left"))
+  wrist_eda_features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max")
+      )
+  })
+  colnames(wrist_eda_features_df) = new_names
+
+  for (c in 1:length(df)) {
+    
+    # finding mu
+    mu_vals = rollapply(df[,c], width = 4*5, by = 1, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(wrist_eda_features_df)==new_col_name)
+    wrist_eda_features_df[, cindx] = mu_vals
+    
+    # finding sd
+    sd_vals = rollapply(df[,c],  width = 4*5, by = 1, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(wrist_eda_features_df)==new_col_name)
+    wrist_eda_features_df[, cindx] = sqrt(sd_vals)
+    
+    # finding max
+    max_vals = rollapply(df[,c],  width = 4*5, by = 1, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(wrist_eda_features_df)==new_col_name)
+    wrist_eda_features_df[, cindx] = max_vals
+    
+    # finding min
+    min_vals = rollapply(df[,c], width = 4*5, by = 1, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(wrist_eda_features_df)==new_col_name)
+    wrist_eda_features_df[, cindx] = min_vals
+    
+  }
+  
+ # make sure merge label, subject back into feature dataframe
+  wrist_eda_features_df$ID <- seq.int(nrow(wrist_eda_features_df))
+
+  return(wrist_eda_features_df)
+}
+
+```
+
+```{r}
+#Wrist TEMP 
+#FIRST WE NEED TO DEFINE LIST OF EACH PERSON'S TEMP Data Frame
+
+wrist_temp_features_df = function(fn) {
+  df_all = read.csv(fn) 
+  drops <- c("X")
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1],  width = 4*5, by = 1, FUN = mean, align = "left"))
+  wrist_temp_features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max")
+      )
+  })
+  colnames(wrist_temp_features_df) = new_names
+
+  for (c in 1:length(df)) {
+    
+    # finding mu
+    mu_vals = rollapply(df[,c], width  = 4*5, by = 1, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(wrist_temp_features_df)==new_col_name)
+    wrist_temp_features_df[, cindx] = mu_vals
+    
+    # finding sd
+    sd_vals = rollapply(df[,c],  width = 4*5, by = 1, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(wrist_temp_features_df)==new_col_name)
+    wrist_temp_features_df[, cindx] = sqrt(sd_vals)
+    
+    # finding max
+    max_vals = rollapply(df[,c],  width = 4*5, by = 1, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(wrist_temp_features_df)==new_col_name)
+    wrist_temp_features_df[, cindx] = max_vals
+    
+    # finding min
+    min_vals = rollapply(df[,c], width = 4*5, by = 1, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(wrist_temp_features_df)==new_col_name)
+    wrist_temp_features_df[, cindx] = min_vals
+    
+  }
+  
+ # make sure merge label, subject back into feature dataframe
+  wrist_temp_features_df$ID <- seq.int(nrow(wrist_temp_features_df))
+  return(wrist_temp_features_df)
+}
+
+```
+
+```{r}
+#WRIST ACC 
+#FIRST WE NEED TO DEFINE LIST OF EACH PERSON'S ACC WRIST Data Frame
+
+wrist_acc_features = function(fn) {
+  df_all = read.csv(fn) %>%
+  mutate(ACC_wrist_3D = sqrt(ACC_wrist_x^2+ACC_wrist_y^2+ACC_wrist_z^2))
+  drops <- c("X")
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1],  width = 32*60, by = 8, FUN = mean, align = "left"))
+  wrist_acc_features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max")
+      )
+  })
+  colnames(wrist_acc_features_df) = new_names
+
+  for (c in 1:length(df)) {
+    
+    # finding mu
+    mu_vals = rollapply(df[,c],width = 32*60, by = 8, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(wrist_acc_features_df)==new_col_name)
+    wrist_acc_features_df[, cindx] = mu_vals
+    
+    # finding sd
+    sd_vals = rollapply(df[,c],  width = 32*60, by = 8, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(wrist_acc_features_df)==new_col_name)
+    wrist_acc_features_df[, cindx] = sqrt(sd_vals)
+    
+    # finding max
+    max_vals = rollapply(df[,c],  width = 32*60, by = 8, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(wrist_acc_features_df)==new_col_name)
+    wrist_acc_features_df[, cindx] = max_vals
+    
+    # finding min
+    min_vals = rollapply(df[,c], width = 32*60, by = 8, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(wrist_acc_features_df)==new_col_name)
+    wrist_acc_features_df[, cindx] = min_vals
+    
+  }
+  
+ # make sure merge label, subject back into feature dataframe
+  wrist_acc_features_df$ID <- seq.int(nrow(wrist_acc_features_df))
+  return(wrist_acc_features_df)
+}
+
+```
+
+```{r}
+subjects <- c("S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9","S10" ,"S11","S13", "S14","S15","S16","S17")
+```
+
+```{r calc-stats-features}
+features_all_modalities = function(subject) {
+  #first, find all filenames
+  chest_nonacc_file = paste0("df_", subject, "_chest_no_acc.csv")
+  chest_acc_file = paste0("df_", subject, "_chest_acc.csv")
+  wrist_bvp_file = paste0("df_", subject, "_bvp_wrist.csv")
+  wrist_eda_file = paste0("df_", subject, "_eda_wrist.csv")
+  wrist_temp_file = paste0("df_", subject, "_temp_wrist.csv")
+  wrist_acc_file = paste0("df_", subject, "_wrist_acc.csv")
+  
+  #then, call each function
+  chest_nonacc = chest_nonacc_features(chest_nonacc_file)
+  chest_acc = chest_acc_features(chest_acc_file)
+  wrist_bvp = wrist_bvp_features(wrist_bvp_file)
+  wrist_eda = wrist_eda_features(wrist_eda_file)
+  wrist_temp = wrist_temp_features(wrist_temp_file)
+  wrist_acc =  wrist_acc_features(wrist_acc_file)
+  
+  #then merge everything by ID
+  all_chest =  merge(chest_nonacc, chest_acc, by="ID")
+  chest_bvp = merge(all_chest, wrist_bvp, by="ID")
+  chest_bvp_eda = merge(chest_bvp, wrist_eda, by="ID")
+  chest_bvp_eda_temp = merge(chest_bvp_eda, wrist_temp, by="ID")
+  all = merge(chest_bvp_eda_temp, wrist_acc, by = "ID")
+  return(all)
+}
+```
+
+```{r}
+ALL_df = NULL
+for (subject in subjects) {
+  print(subject)
+  feature_data = features_all_modalities(subject) #CHANGE FILE PATH 
+  #subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
+  HR_fn = paste0("~/case-study-2/WESAD/", subject, "/", subject, "_E4_Data/HR.csv") 
+  
+  #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
+  HR_data = read.csv(HR_fn)[-1,]
+  hr = HR_calc(as.data.frame(HR_data), 5, 1)
+  
+  df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
+                            ncol=4, byrow = F))
+  colnames(df_hr) = c("hr_wrist_mu","hr_wrist_sd", "hr_wrist_min", "hr_wrist_max")#, "hr_wrist_range")
+  df_hr$ID =seq.int(nrow(df_hr))
+  
+  feature_data = feature_data[-c(1:40),]
+  feature_data$ID <- seq.int(nrow(feature_data))
+  
+  S_df = merge(feature_data, df_hr, by="ID")
+  ALL_df = rbind(ALL_df, S_df)
+  
+  ALL_df <- ALL_df %>%
+    filter(Label == 2 |Label == 3)
+}
+
+write.csv(ALL_df, "master2_df.csv")
+```
+
+```{r}
 # IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
 # 
 # RMSSD_calc = function(df, peaks) {
@@ -221,16 +610,16 @@ ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
 
 # get rid of chest EDA and temp and all min max (underdispersion)
 remove_select_cov = ALL_df %>%
-  select(-contains("ACC_wrist")) %>%
-  select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
-  select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
-  select(-contains("BVP")) %>%
-  select(-contains("ECG")) %>%
-  select(-contains("min")) %>%
-  select(-contains("max")) %>%
-  select(-contains("ACC_chest_X")) %>%
-  select(-contains("ACC_chest_Y")) %>%
-  select(-contains("ACC_chest_Z"))
+  dplyr::select(-contains("ACC_wrist")) %>%
+  dplyr::select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
+  dplyr::select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
+  dplyr::select(-contains("BVP")) %>%
+  dplyr::select(-contains("ECG")) %>%
+  dplyr::select(-contains("min")) %>%
+  dplyr::select(-contains("max")) %>%
+  dplyr::select(-contains("ACC_chest_X")) %>%
+  dplyr::select(-contains("ACC_chest_Y")) %>%
+  dplyr::select(-contains("ACC_chest_Z"))
 
 remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
 
@@ -266,12 +655,12 @@ fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 6, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 7, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 8, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 9, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 10, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 11, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 6, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 7, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 8, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 9, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 10, top = 10)
+# fviz_contrib(res.pca, choice = "var", axes = 11, top = 10)
 # fviz_contrib(res.pca, choice = "var", axes = 12, top = 10)
 # fviz_contrib(res.pca, choice = "var", axes = 13, top = 10)
 ```
@@ -331,8 +720,11 @@ scaled_remove_select_cov = scaled_remove_select_cov %>%
 
 train_raw <- scaled_remove_select_cov[train_ind, ]
 test_raw <- scaled_remove_select_cov[-train_ind, ]
+
 # OG FULL model with non-pca variables and PERF/QUASI separation
 raw.model = glm(Label ~., family = binomial(link="logit"), data=train_raw)
+
+raw.model = glm(Label ~. -Subject, family = binomial(link="logit"), data=train_raw)
 
 # we have IDENTIFIABILITY issues 
 summary(raw.model)
@@ -446,11 +838,13 @@ fviz_contrib(res.pca, choice = "var", axes = 11, top = 10)
 ```
 
 ```{r run-wrist-model}
+# wrist_only = data.frame(scaled_wrist_nb)
 smp_size <- floor(0.75 * nrow(wrist_only))
 train_ind <- sample(seq_len(nrow(wrist_only)), size = smp_size)
 train_wrist <- wrist_only[train_ind, ]
 test_wrist <- wrist_only[-train_ind, ]
 
+# OUR MODEL FOR WRIST
 wrist.full = glm(Label ~. -Subject, family = "binomial", data = train_wrist)
 summary(wrist.full)
 
@@ -459,14 +853,115 @@ pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test_wrist$Label==pred.test)
 
+step.wrist.model = wrist.full %>% stepAIC(trace=FALSE)
+summary(step.wrist.model)
 
+#convert training data to matrix format
+train_wrist_x = train_wrist %>% 
+  dplyr::select(-Label) %>%
+  mutate(Subject = as.factor(Subject))
+
+x <- data.matrix(train_wrist_x)#, nrow = nrow(train_raw_x))
+#convert class to numerical variable
+y <- train_wrist$Label
+lasso.fit = glmnet(x, y, alpha = 1, family = "binomial")
+
+plot(lasso.fit)
+
+elasticnet.fit = glmnet(x, y, alpha = 0.5, family = "binomial")
+
+plot(elasticnet.fit)
+```
+
+
+```{r}
+
+```
+
+```{r}
 # model one: combo data, pca, no subject
 # model two: wrist data, no pca, no subject
 
 # model three (interpret): combo data (hopefully), subject interactions no main effects
 ```
 
+```{r kfold-cv}
+set.seed(123)
 
+kfoldcv_wrist_full = function(df) {
+  
+  actual_values = c()
+  predicted_values = c()
+  fitted_probs = c()
+  
+  # fold_accuracies = c()
+  # fold_f1 = c()
+  
+  fold_no = c()
+  subject = c()
+  
+  print("at folds")
+  folds <- createFolds(factor(df$Subject), k = 5)
+  
+  print("past folds")
+  for (i in 1:5) {
+  #train and test
+    col = paste0("Fold", i)
+    indx = unlist(folds[col])
+
+  train<- df[-indx,]
+  print(nrow(train1))
+  test<- df[indx, ]
+  print(nrow(test1))
+  
+  
+  # run model
+  wrist.full = glm(Label ~. -Subject, family = "binomial", data = train)
+#summary(wrist.full)
+
+pred.test = wrist.full %>% predict(test, type= "response")
+fitted_probs = c(fitted_probs, pred.test)
+pred.test = ifelse(pred.test>0.5, 1,0)
+predicted_values = c(predicted_values, pred.test)
+actual_values = c(actual_values, test$Label)
+
+
+  subject = c(subject, test$Subject)
+  fold_no = c(fold_no, rep(i, nrow(test)))
+  
+  
+  
+  #acc1 = mean(test1$Label==pred.test)
+  #fold_accuracies = c(fold_accuracies, acc1)
+  
+  # add function to compute f1
+  # blah
+}
+  #train on training set
+  #test on testing set 
+  #predict labels
+  #find accuracy and f1, add to fold_accuracies and fold_f1
+  #put predicted values in predicted_values
+  #put actual values in actual_values
+  
+  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
+        fold_no, subject))
+  
+  return(cvoutput)
+}
+
+wristcvoutput = kfoldcv_wrist_full(wrist_only)
+```
+
+
+```{r}
+fold1 = wristcvoutput %>%
+  filter(subject=="S17")#%>%
+  #mean(actual_values==predicted_values)
+mean(fold1$actual_values==fold1$predicted_value)
+```
+
+# SOME PLOTS MAY BE USEFUL
 ```{r distrib-vs-label}
 varvslabel <- function(var){
   ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Label, 
@@ -492,6 +987,8 @@ varvssubj <- function(var){
 lapply(names(remove_select_cov_nb), varvssubj)
 ```
 For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference in distribution across the subjects. For ECG and BVP variables, only the sd measure showed differences across subjects.
+
+# FROM SATURDAY
 
 ```{r testtrainsplit}
 set.seed(123)
