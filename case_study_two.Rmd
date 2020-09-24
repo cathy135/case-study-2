@@ -677,6 +677,7 @@ PCA basically confirms what we know about the correlations among the variables: 
 
 ```{r}
 pca_vals <- as.data.frame(res.pca$ind$coord)
+#test = as.data.frame(scale(res.pca$ind$coord, center = TRUE, scale=FALSE))
 pca_vals$Label = remove_select_cov$Label
 pca_vals$Subject = remove_select_cov$Subject
 ```
@@ -712,7 +713,7 @@ mean(test_pca$Label==pred.test)
 
 ```{r}
 remove_select_cov_nsubj = remove_select_cov %>% dplyr::select(-Subject, -Label)
-scaled_remove_select_cov = scale(remove_select_cov_nsubj, center=TRUE, scale = FALSE)
+scaled_remove_select_cov = scale(remove_select_cov_nsubj, center=TRUE, scale = TRUE)
 scaled_remove_select_cov = cbind(scaled_remove_select_cov, as.data.frame(remove_select_cov$Subject), as.data.frame(remove_select_cov$Label))
 scaled_remove_select_cov = scaled_remove_select_cov %>%
   rename(Subject = `remove_select_cov$Subject`) %>%
@@ -838,11 +839,17 @@ fviz_contrib(res.pca, choice = "var", axes = 11, top = 10)
 ```
 
 ```{r run-wrist-model}
-# wrist_only = data.frame(scaled_wrist_nb)
-smp_size <- floor(0.75 * nrow(wrist_only))
-train_ind <- sample(seq_len(nrow(wrist_only)), size = smp_size)
-train_wrist <- wrist_only[train_ind, ]
-test_wrist <- wrist_only[-train_ind, ]
+wrist_only_nsubj = wrist_only %>% dplyr::select(-Subject, -Label)
+scaled_wrist_only = scale(wrist_only_nsubj, center=TRUE, scale = FALSE)
+scaled_wrist_only = cbind(scaled_wrist_only, as.data.frame(wrist_only$Subject), as.data.frame(wrist_only$Label))
+scaled_wrist_only = scaled_wrist_only %>%
+  rename(Subject = `wrist_only$Subject`) %>%
+  rename(Label = `wrist_only$Label`)
+
+smp_size <- floor(0.75 * nrow(scaled_wrist_only))
+train_ind <- sample(seq_len(nrow(scaled_wrist_only)), size = smp_size)
+train_wrist <- scaled_wrist_only[train_ind, ]
+test_wrist <- scaled_wrist_only[-train_ind, ]
 
 # OUR MODEL FOR WRIST
 wrist.full = glm(Label ~. -Subject, family = "binomial", data = train_wrist)
@@ -871,11 +878,6 @@ plot(lasso.fit)
 elasticnet.fit = glmnet(x, y, alpha = 0.5, family = "binomial")
 
 plot(elasticnet.fit)
-```
-
-
-```{r}
-
 ```
 
 ```{r}
@@ -950,13 +952,13 @@ actual_values = c(actual_values, test$Label)
   return(cvoutput)
 }
 
-wristcvoutput = kfoldcv_wrist_full(wrist_only)
+wristcvoutput = kfoldcv_wrist_full(scaled_wrist_only)
 ```
 
 
 ```{r}
 fold1 = wristcvoutput %>%
-  filter(subject=="S17")#%>%
+  filter(subject=="S11")#%>%
   #mean(actual_values==predicted_values)
 mean(fold1$actual_values==fold1$predicted_value)
 ```
