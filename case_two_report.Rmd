@@ -3,6 +3,8 @@ title: "case_two_report"
 output: html_document
 ---
 
+RUNTIME: 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -147,11 +149,13 @@ remove_select_cov = ALL_df %>%
   dplyr::select(-contains("ECG")) %>%
   dplyr::select(-contains("min")) %>%
   dplyr::select(-contains("max")) %>%
-  dplyr::select(-contains("ACC_chest_X")) %>%
-  dplyr::select(-contains("ACC_chest_Y")) %>%
-  dplyr::select(-contains("ACC_chest_Z"))
+  dplyr::select(-contains("ACC_chest_X_mean")) %>%
+  dplyr::select(-contains("ACC_chest_Y_mean")) %>%
+  dplyr::select(-contains("ACC_chest_Z_mean")) %>%
+  dplyr::select(-contains("ACC_chest_3D_mean")) 
 
-remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
+
+remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 1, 0)
 
 non_biological = c("Label", "Subject")
 remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
@@ -196,15 +200,16 @@ For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference 
 
 wrist_only = ALL_df %>%
   dplyr::select(contains("wrist")) %>%
-  dplyr::select(-contains("ACC_wrist_x")) %>%
-  dplyr::select(-contains("ACC_wrist_y")) %>%
-  dplyr::select(-contains("ACC_wrist_z"))
+  dplyr::select(-contains("ACC_wrist_x_mean")) %>%
+  dplyr::select(-contains("ACC_wrist_y_mean")) %>%
+  dplyr::select(-contains("ACC_wrist_z_mean")) %>%
+  dplyr::select(-contains("ACC_wrist_3D_mean"))
 
 wrist_only = cbind(wrist_only, as.data.frame(ALL_df$Subject), as.data.frame(ALL_df$Label))
 wrist_only = wrist_only %>%
   rename(Subject = `ALL_df$Subject`) %>%
   rename(Label = `ALL_df$Label`) %>%
-  mutate(Label = ifelse(Label==2, 0, 1)) %>%
+  mutate(Label = ifelse(Label==2, 1, 0)) %>%
   dplyr::select(-contains("min")) %>%
   dplyr::select(-contains("max")) 
 
@@ -235,6 +240,12 @@ fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+```
+
+```{r}
+wrist_pca_vals <- as.data.frame(res.pca$ind$coord)
+wrist_pca_vals$Label = wrist_only$Label
+wrist_pca_vals$Subject = wrist_only$Subject
 ```
 
 # Wrist Model
@@ -283,78 +294,78 @@ plot(elasticnet.fit)
 # Wrist K-Fold CV
 
 ```{r wrist-kfold-cv}
-set.seed(123)
-
-kfoldcv_wrist_full = function(df) {
-  
-  actual_values = c()
-  predicted_values = c()
-  fitted_probs = c()
-  
-  # fold_accuracies = c()
-  # fold_f1 = c()
-  
-  fold_no = c()
-  subject = c()
-  
-  print("at folds")
-  folds <- createFolds(factor(df$Subject), k = 5)
-  
-  print("past folds")
-  for (i in 1:5) {
-  #train and test
-    col = paste0("Fold", i)
-    indx = unlist(folds[col])
-
-  train<- df[-indx,]
-  print(nrow(train))
-  test<- df[indx, ]
-  print(nrow(test))
-  
-  
-  # run model
-  wrist.full = glm(Label ~. -Subject, family = "binomial", data = train)
-#summary(wrist.full)
-
-pred.test = wrist.full %>% predict(test, type= "response")
-fitted_probs = c(fitted_probs, pred.test)
-pred.test = ifelse(pred.test>0.5, 1,0)
-predicted_values = c(predicted_values, pred.test)
-actual_values = c(actual_values, test$Label)
-
-
-  subject = c(subject, test$Subject)
-  fold_no = c(fold_no, rep(i, nrow(test)))
-  
-  
-  
-  #acc1 = mean(test1$Label==pred.test)
-  #fold_accuracies = c(fold_accuracies, acc1)
-  
-  # add function to compute f1
-  # blah
-}
-  #train on training set
-  #test on testing set 
-  #predict labels
-  #find accuracy and f1, add to fold_accuracies and fold_f1
-  #put predicted values in predicted_values
-  #put actual values in actual_values
-  
-  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
-        fold_no, subject))
-  
-  return(cvoutput)
-}
-
-wristcvoutput = kfoldcv_wrist_full(scaled_wrist_only)
+# set.seed(123)
+# 
+# kfoldcv_wrist_full = function(df) {
+#   
+#   actual_values = c()
+#   predicted_values = c()
+#   fitted_probs = c()
+#   
+#   # fold_accuracies = c()
+#   # fold_f1 = c()
+#   
+#   fold_no = c()
+#   subject = c()
+#   
+#   print("at folds")
+#   folds <- createFolds(factor(df$Subject), k = 5)
+#   
+#   print("past folds")
+#   for (i in 1:5) {
+#   #train and test
+#     col = paste0("Fold", i)
+#     indx = unlist(folds[col])
+# 
+#   train<- df[-indx,]
+#   print(nrow(train))
+#   test<- df[indx, ]
+#   print(nrow(test))
+#   
+#   
+#   # run model
+#   wrist.full = glm(Label ~. -Subject, family = "binomial", data = train)
+# #summary(wrist.full)
+# 
+# pred.test = wrist.full %>% predict(test, type= "response")
+# fitted_probs = c(fitted_probs, pred.test)
+# pred.test = ifelse(pred.test>0.5, 1,0)
+# predicted_values = c(predicted_values, pred.test)
+# actual_values = c(actual_values, test$Label)
+# 
+# 
+#   subject = c(subject, test$Subject)
+#   fold_no = c(fold_no, rep(i, nrow(test)))
+#   
+#   
+#   
+#   #acc1 = mean(test1$Label==pred.test)
+#   #fold_accuracies = c(fold_accuracies, acc1)
+#   
+#   # add function to compute f1
+#   # blah
+# }
+#   #train on training set
+#   #test on testing set 
+#   #predict labels
+#   #find accuracy and f1, add to fold_accuracies and fold_f1
+#   #put predicted values in predicted_values
+#   #put actual values in actual_values
+#   
+#   cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
+#         fold_no, subject))
+#   
+#   return(cvoutput)
+# }
+# 
+# wristcvoutput = kfoldcv_wrist_full(scaled_wrist_only)
 ```
 
 ```{r wrist-kfold-res}
-fold1 = wristcvoutput %>%
-  filter(subject=="S11")
-
-mean(fold1$actual_values==fold1$predicted_value)
+# fold1 = wristcvoutput %>%
+#   filter(subject=="S11")
+# 
+# mean(fold1$actual_values==fold1$predicted_value)
 ```
 
 # Combo PCA
@@ -362,7 +373,7 @@ mean(fold1$actual_values==fold1$predicted_value)
 ```{r pca}
 scaled_select_cov_nb = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
   
-res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 5)
+res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 4)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
@@ -376,8 +387,12 @@ fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+#fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
 ```
+Dim1: Variability in movement over 5 secs
+Dim2: Dermal Temp and Activity
+Dim3: HR from wrist measurement
+Dim4: Muscular+Nerve activity+breathing
 
 ```{r pca-vars}
 pca_vals <- as.data.frame(res.pca$ind$coord)
@@ -393,7 +408,7 @@ train_ind <- sample(seq_len(nrow(pca_vals)), size = smp_size)
 train_pca <- pca_vals[train_ind, ]
 test_pca <- pca_vals[-train_ind, ]
 
-# COMBO PCA MODEL model without Subject 
+# COMBO PCA MODEL model without Subject  INTERPRET MAIN EFFECTS
 pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
 
 summary(pca.model)
@@ -402,6 +417,8 @@ pred.test = pca.model %>% predict(test_pca, type= "response")
 pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test_pca$Label==pred.test)
+
+#TABLE FOR COEFFICIENTS CATHY
 ```
 
 ```{r combo-stepwise-glmnet}
@@ -424,10 +441,10 @@ plot(elasticnet.fit)
 
 # Combo K-Fold CV
 
-```{r combo-kfold-cv}
+```{r combo-wrist-kfold-cv-nosubj}
 set.seed(123)
 
-kfoldcv_wrist_full = function(df) {
+kfoldcv_no_subject = function(df) {
   
   actual_values = c()
   predicted_values = c()
@@ -489,42 +506,90 @@ actual_values = c(actual_values, test$Label)
   return(cvoutput)
 }
 
-combocvoutput = kfoldcv_wrist_full(pca_vals)
+combocvoutput = kfoldcv_no_subject(pca_vals)
+wristcvoutput = kfoldcv_no_subject(wrist_pca_vals)
+
 ```
 
 ```{r combo-kfold-res}
-fold1 = combocvoutput %>%
-  filter(subject=="S11")
+combo_acc_per_fold = combocvoutput %>%
+  group_by(fold_no) %>%
+  summarize(accuracy = mean(actual_values==predicted_values))
 
-mean(fold1$actual_values==fold1$predicted_value)
+combo_f1_per_fold = combocvoutput %>%
+  group_by(fold_no) %>%
+  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+
+wrist_acc_per_fold = wristcvoutput %>%
+  group_by(fold_no) %>%
+  summarize(accuracy = mean(actual_values==predicted_values))
+
+wrist_f1_per_fold = wristcvoutput %>%
+  group_by(fold_no) %>%
+  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+
+# REWMEMEVR TO ROUDN
+acc_f1_data <- matrix(c(mean(combo_acc_per_fold$accuracy),
+                  mean(wrist_acc_per_fold$accuracy),
+                  mean(combo_f1_per_fold$f1),
+                  mean(wrist_f1_per_fold$f1)),ncol=2,byrow=TRUE)
+colnames(acc_f1_data) <- c("Combo","Wrist")
+rownames(acc_f1_data) <- c("Accuracy","F1")
+acc_f1_tab <- as.table(acc_f1_data)
+library(broom)
+library(knitr)
+kable(acc_f1_tab, caption = "title")
+```
+
+```{r}
+# add row and col names or get rid of kable
+kable(as.table(confusionMatrix(as.factor(combocvoutput$predicted_values), as.factor(combocvoutput$actual_values))))
+as.table(confusionMatrix(as.factor(wristcvoutput$predicted_values), as.factor(wristcvoutput$actual_values)))
+```
+
+# cathy just try to fix this
+```{r}
+# library(plotROC)
+# ggplot(combocvoutput, aes(d=actual_values, m = fitted_probs)) + 
+#   geom_roc(n.cuts = 0) + 
+#   geom_abline(intercept = 0)
+# library(pROC)
+# 
+# object = roc(as.factor(combocvoutput$actual_values),  as.factor(combocvoutput$predicted_values))
+# plot.roc(x= combocvoutput$actual_values, y = combocvoutput$fitted_probs)
+# 
+# aug <- augment(pca.model.interact, type.predict = "response", 
+#                      type.residuals = "response")
+#roc(combocvoutput$actual_values,combocvoutput$predicted_values)$auc
 ```
 
 # IV. Results
 
 # Final Model
 
-```{r}
+```{r, warning = F}
 # HOPEFULLY THE RIGHT ONE model with no main effect for Subject but with interactions
-pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
+pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                   +Dim.2:Subject
                   +Dim.3:Subject
                   +Dim.4:Subject
-                  +Dim.5:Subject
-                 , family = binomial(link="logit"), data=train_pca)
+                 , family = binomial(link="logit"), data=pca_vals)
 
 summary(pca.model.interact)
 
-pred.test = pca.model.interact %>% predict(test_pca, type= "response")
+pred.test = pca.model.interact %>% predict(pca_vals, type= "response")
+pca_vals$fitted = pred.test
 pred.test = ifelse(pred.test>0.5, 1,0)
+pca_vals$predicted = pred.test
 
-mean(test_pca$Label==pred.test)
-
-F1_Score(test_pca$Label, pred.test, positive = NULL)
-confusionMatrix(as.factor(pred.test), as.factor(test_pca$Label))
+# 
+# mean(test_pca$Label==pred.test)
+# 
+# F1_Score(test_pca$Label, pred.test, positive = NULL)
+# confusionMatrix(as.factor(pred.test), as.factor(test_pca$Label))
 ```
 
-
-```{r combo-kfold-cv}
+```{r combo-kfold-cv, warning = F}
 set.seed(123)
 
 kfoldcv_wrist_full = function(df) {
@@ -555,11 +620,10 @@ kfoldcv_wrist_full = function(df) {
   
   
   # run model
-pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
+pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                   +Dim.2:Subject
                   +Dim.3:Subject
                   +Dim.4:Subject
-                  +Dim.5:Subject
                  , family = binomial(link="logit"), data=train_pca)
 #summary(wrist.full)
 
@@ -598,24 +662,108 @@ finalcvoutput = kfoldcv_wrist_full(pca_vals)
 ```
 
 ```{r final-kfold-res}
-fold1 = finalcvoutput %>%
-  filter(subject=="S11")
 
-mean(fold1$actual_values==fold1$predicted_value)
+#MALAVI ADD FOR SUBJECT
+
+final_acc_per_fold = finalcvoutput %>%
+  group_by(fold_no) %>%
+  summarize(accuracy = mean(actual_values==predicted_values))
+
+final_f1_per_fold = finalcvoutput %>%
+  group_by(fold_no) %>%
+  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+
+final_acc_per_subj = finalcvoutput %>%
+  group_by(subject) %>%
+  summarize(accuracy = mean(actual_values==predicted_values))
+
+final_f1_per_subj = finalcvoutput %>%
+  group_by(subject) %>%
+  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+
+# REWMEMEVR TO ROUDN
+# acc_f1_data <- matrix(c(mean(combo_acc_per_fold$accuracy),
+#                   mean(wrist_acc_per_fold$accuracy),
+#                   "", "",
+#                   mean(combo_f1_per_fold$f1),
+#                   mean(wrist_f1_per_fold$f1)),ncol=2,byrow=TRUE)
+# # colnames(acc_f1_data) <- c("Combo","Wrist")
+# # rownames(acc_f1_data) <- c("Accuracy","F1")
+# acc_f1_tab <- as.table(acc_f1_data)
+# library(broom)
+# library(knitr)
+# kable(acc_f1_tab, caption = "title")
 ```
 
+# Interaction Plot
 
+```{r}
+# ggplot(data = pca_vals %>% filter(Subject %in% c("S4", "S9", "S13", "S17")), aes(x = Dim.1, y = predicted, color = as.factor(Subject))) +
+#   #geom_point() +
+#   geom_jitter(width = 0.2, height = 0.1, size = 0.3) +
+#   #geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
+#  #             size = 2, se = F, aes(color = as.factor(Subject))) +
+#   geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
+#               size = 0.5, se = F, fullrange = T, aes(color = as.factor(Subject))) +
+#   #geom_dl(aes(label = Subject), method = list(dl.combine("first.points", "last.points")))+
+#   labs(color = "Subject", y = "Pr(Amusement State)") +
+#   ylim(0,1)
+# 
+# ggplot(data = pca_vals , aes(x = Dim.1, y = predicted, color = as.factor(Subject))) +
+#   #geom_point() +
+#   geom_jitter(width = 0.2, height = 0.1, size = 0.3) +
+#   #geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
+#  #             size = 2, se = F, aes(color = as.factor(Subject))) +
+#   geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
+#               size = 0.5, se = F, fullrange = T, aes(color = as.factor(Subject))) +
+#   geom_dl(aes(label = Subject), method = list(dl.combine("first.points", "last.points")))+
+#   labs(color = "Subject", y = "Pr(Amusement State)") +
+#   ylim(0,1)
+```
 
+```{r}
+install.packages("sjPlot")
+library(sjPlot)
 
+library(RColorBrewer)
+# Define the number of colors you want
+nb.cols <- 15
+mycolors <- colorRampPalette(brewer.pal(8, "Set2"))(nb.cols)
 
+plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors)  
+#summary(pca.model.interact)
 
+#plot_model(pca.model.interact, type = "int")#, terms = c("Dim.1 [all]", "Subject"))
+#summary(pca.model.interact)
+```
+As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the odds of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][].
 
+```{r int-2}
+plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors)  
+```
 
+if stress = 1, then those on the right are ppl whose odds of stress increases as they get 
+As Dermal Temperature and Activity increases, 
+Weird people: 2,7,13
 
+```{r int-3}
+plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors) 
+```
+cathy
+Weird people: 5, 6, 9, 17
 
+```{r int-4}
+plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors) 
+```
+malavi
+Weird people: 6,7,2,14,10
 
 # Appendix
-
+# put more sad functions if time permits
 ```{r rmssd-calc}
 # IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
 # 
