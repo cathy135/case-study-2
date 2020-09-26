@@ -19,10 +19,6 @@ library(glmnet)
 library(FactoMineR)
 library(factoextra)
 library(MASS)
-```
-
-
-```{r}
 library(caret)
 library(MLmetrics)
 ```
