@@ -18,6 +18,7 @@ library(FactoMineR)
 library(factoextra)
 library(MASS)
 library(caret)
+library(MLmetrics)
 ```
 
 ## Import Data
@@ -695,6 +696,13 @@ pca.model = glm(Label ~ ., family = binomial(link="logit"), data=train_pca)
 
 pca.model.nsubj = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
 
+summary(pca.model)
+
+
+pred.test = pca.model %>% predict(test_pca, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_pca$Label==pred.test)
 
 # HOPEFULLY THE RIGHT ONE model with no main effect for Subject but with interactions
 pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
@@ -702,13 +710,20 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
                   +Dim.3:Subject
                   +Dim.4:Subject
                   +Dim.5:Subject
-                    , family = binomial(link="logit"), data=train_pca)
-summary(pca.model)
+         
+                 , family = binomial(link="logit"), data=train_pca)
 
-pred.test = pca.model %>% predict(test_pca, type= "response")
+summary(pca.model.interact)
+
+
+
+pred.test = pca.model.interact %>% predict(test_pca, type= "response")
 pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test_pca$Label==pred.test)
+
+F1_Score(test_pca$Label, pred.test, positive = NULL)
+confusionMatrix(as.factor(pred.test), as.factor(test_pca$Label))
 ```
 
 ```{r}
@@ -817,7 +832,6 @@ eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
-
 
 ```{r pca-cont}
 var <- get_pca_var(res.pca)

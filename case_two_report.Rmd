@@ -1,0 +1,594 @@
+---
+title: "case_two_report"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Call Libraries
+```{r}
+library(zoo)
+library(varian)
+library(tidyverse)
+library(corrplot)
+library(glmnet)
+library(FactoMineR)
+library(factoextra)
+library(MASS)
+library(caret)
+library(MLmetrics)
+```
+
+# I. Introduction
+
+# II a. Data
+
+# Create Data and Feature Engineering
+
+```{r calc-stats-features}
+features_all_modalities = function(fn, win_size, shift) {
+  df_all = read.csv(fn) %>%
+    mutate(ACC_chest_3D = sqrt(ACC_chest_X^2+ACC_chest_Y^2+ACC_chest_Z^2)) %>%
+    mutate(ACC_wrist_3D = sqrt(ACC_wrist_x^2+ACC_wrist_y^2+ACC_wrist_z^2))
+  drops <- c("X", "Label", "subject")
+  df = df_all[ , !(names(df_all) %in% drops)]
+  replace_rows =  length(rollapply(df[,1], width = win_size*4, by = shift, FUN = mean, align = "left"))
+  features_df <- data.frame(matrix(ncol = ncol(df)*4, nrow = replace_rows))
+  new_names = sapply(1:length(df), function(c) {
+    c(paste0(colnames(df)[c],"_mean"),
+      paste0(colnames(df)[c],"_sd"),
+      #paste0(colnames(df)[c],"_range"),
+      paste0(colnames(df)[c],"_min"),
+      paste0(colnames(df)[c],"_max")
+      # paste0(colnames(df)[c],"_skew")
+      )
+  })
+  colnames(features_df) = new_names
+
+
+
+  for (c in 1:length(df)) {
+
+    # finding mu
+    mu_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = mean, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_mean")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = mu_vals
+
+    # finding sd
+    sd_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = var, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_sd")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = sqrt(sd_vals)
+
+    # finding max
+    max_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = max, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_max")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = max_vals
+
+    # finding min
+    min_vals = rollapply(df[,c], width = win_size*4, by = shift, FUN = min, align = "left")
+    new_col_name = paste0(colnames(df)[c],"_min")
+    cindx = which(colnames(features_df)==new_col_name)
+    features_df[, cindx] = min_vals
+
+  }
+
+ # make sure merge label, subject back into feature dataframe
+  features_df$Label = df_all[1:replace_rows, "Label"]
+  features_df$Subject = df_all[1:replace_rows, "subject"]
+  return(features_df)
+}
+```
+
+```{r hr-calc}
+HR_calc = function(df, win_size, shift) {
+  df <- df[rep(seq_len(nrow(df)), each = 4), ]
+  mu_vals = rollapply(df, width = win_size*4, by = shift, FUN = mean, align = "left")
+  sd_vals = rollapply(df, width = win_size*4, by = shift, FUN = sd, align = "left")
+  min_vals = rollapply(df, width = win_size*4, by = shift, FUN = min, align = "left")
+  max_vals = rollapply(df, width = win_size*4, by = shift, FUN = max, align = "left")
+
+  return(list(mu = mu_vals, sd = sd_vals,
+              min = min_vals, max = max_vals))
+}
+```
+
+```{r import-file-names}
+file_list <- list.files()
+subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
+```
+
+```{r run-all-featengine-combine }
+ALL_df = NULL
+for (i in 1:length(subject_data)) {
+  print(i)
+  feature_data = features_all_modalities(subject_data[i], 5, 1) #CHANGE FILE PATH 
+  subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
+  HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
+  HR_data = read.csv(HR_fn)[-1,]
+  hr = HR_calc(as.data.frame(HR_data), 5, 1)
+
+  df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
+                             ncol=4, byrow = F))
+  colnames(df_hr) = c("hr_wrist_mu","hr_wrist_sd", "hr_wrist_min", "hr_wrist_max")#, "hr_wrist_range")
+  df_hr$ID =seq.int(nrow(df_hr))
+  
+  feature_data = feature_data[-c(1:40),]
+  feature_data$ID <- seq.int(nrow(feature_data))
+
+  S_df = merge(feature_data, df_hr, by="ID")
+  ALL_df = rbind(ALL_df, S_df)
+}
+ALL_df = ALL_df %>% filter(Label %in% c("2","3"))
+write.csv(ALL_df, "master10000_df.csv")
+```
+
+# II b. EDA
+
+# EDA
+
+```{r corrplot}
+ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
+
+# get rid of chest EDA and temp and all min max (underdispersion)
+remove_select_cov = ALL_df %>%
+  dplyr::select(-contains("ACC_wrist")) %>%
+  dplyr::select(-EDA_mean, -EDA_sd, -EDA_max, -EDA_min) %>%
+  dplyr::select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
+  dplyr::select(-contains("BVP")) %>%
+  dplyr::select(-contains("ECG")) %>%
+  dplyr::select(-contains("min")) %>%
+  dplyr::select(-contains("max")) %>%
+  dplyr::select(-contains("ACC_chest_X")) %>%
+  dplyr::select(-contains("ACC_chest_Y")) %>%
+  dplyr::select(-contains("ACC_chest_Z"))
+
+remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 0, 1)
+
+non_biological = c("Label", "Subject")
+remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
+
+# maybe reorder the variables
+cormatrix = cor(remove_select_cov_nb)
+corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
+```
+
+```{r distrib-vs-label}
+varvslabel <- function(var){
+  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Label, 
+                                 group = remove_select_cov$Label)) +
+    geom_boxplot() +
+    labs(x ="Label", y = as.name(var))
+}
+
+lapply(names(remove_select_cov_nb), varvslabel)
+```
+
+It appears from these boxplots (prob most all except Electrodermal Activity to appendix), the distribution of physiological measures don't differ much between the stress and amusement states, but the boxplot for EDA shows a difference in distribution.
+
+```{r subject-vs-covariates}
+varvssubj <- function(var){
+  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Subject, 
+                                 group = remove_select_cov$Subject)) +
+    geom_boxplot() +
+    labs(x ="Subject", y = as.name(var))
+}
+
+lapply(names(remove_select_cov_nb), varvssubj)
+```
+
+For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference in distribution across the subjects. For ECG and BVP variables, only the sd measure showed differences across subjects.
+
+# III. Methods
+
+# Wrist Data Cleaning
+
+```{r wristcorrplot}
+#ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
+
+wrist_only = ALL_df %>%
+  dplyr::select(contains("wrist")) %>%
+  dplyr::select(-contains("ACC_wrist_x")) %>%
+  dplyr::select(-contains("ACC_wrist_y")) %>%
+  dplyr::select(-contains("ACC_wrist_z"))
+
+wrist_only = cbind(wrist_only, as.data.frame(ALL_df$Subject), as.data.frame(ALL_df$Label))
+wrist_only = wrist_only %>%
+  rename(Subject = `ALL_df$Subject`) %>%
+  rename(Label = `ALL_df$Label`) %>%
+  mutate(Label = ifelse(Label==2, 0, 1)) %>%
+  dplyr::select(-contains("min")) %>%
+  dplyr::select(-contains("max")) 
+
+non_biological = c("Label", "Subject")
+wrist_nb = wrist_only[ , !(names(wrist_only) %in% non_biological)]
+
+# maybe reorder the variables
+cormatrix = cor(wrist_nb)
+corrplot::corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.6, number.cex= 10/ncol(wrist_nb))
+```
+
+# Wrist PCA
+
+```{r pca}
+scaled_wrist_nb = scale(wrist_nb, center = TRUE, scale = TRUE)
+res.pca <- PCA(scaled_wrist_nb, graph = FALSE, ncp = 5)
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+```{r pca-cont}
+var <- get_pca_var(res.pca)
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb))
+
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+```
+
+# Wrist Model
+
+```{r run-wrist-model}
+wrist_only_nsubj = wrist_only %>% dplyr::select(-Subject, -Label)
+scaled_wrist_only = scale(wrist_only_nsubj, center=TRUE, scale = FALSE)
+scaled_wrist_only = cbind(scaled_wrist_only, as.data.frame(wrist_only$Subject), as.data.frame(wrist_only$Label))
+scaled_wrist_only = scaled_wrist_only %>%
+  rename(Subject = `wrist_only$Subject`) %>%
+  rename(Label = `wrist_only$Label`)
+
+smp_size <- floor(0.75 * nrow(scaled_wrist_only))
+train_ind <- sample(seq_len(nrow(scaled_wrist_only)), size = smp_size)
+train_wrist <- scaled_wrist_only[train_ind, ]
+test_wrist <- scaled_wrist_only[-train_ind, ]
+
+# OUR MODEL FOR WRIST
+wrist.full = glm(Label ~. -Subject, family = "binomial", data = train_wrist)
+summary(wrist.full)
+
+pred.test = wrist.full %>% predict(test_wrist, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_wrist$Label==pred.test)
+```
+
+```{r wrist-stepwise-glmnet}
+# stepwise
+step.wrist.model = wrist.full %>% stepAIC(trace=FALSE)
+summary(step.wrist.model)
+
+#convert training data to matrix format
+train_wrist_x = train_wrist %>% 
+  dplyr::select(-Label) %>%
+  mutate(Subject = as.factor(Subject))
+
+x <- data.matrix(train_wrist_x)
+y <- train_wrist$Label
+lasso.fit = glmnet(x, y, alpha = 1, family = "binomial")
+plot(lasso.fit)
+elasticnet.fit = glmnet(x, y, alpha = 0.5, family = "binomial")
+plot(elasticnet.fit)
+```
+
+# Wrist K-Fold CV
+
+```{r wrist-kfold-cv}
+set.seed(123)
+
+kfoldcv_wrist_full = function(df) {
+  
+  actual_values = c()
+  predicted_values = c()
+  fitted_probs = c()
+  
+  # fold_accuracies = c()
+  # fold_f1 = c()
+  
+  fold_no = c()
+  subject = c()
+  
+  print("at folds")
+  folds <- createFolds(factor(df$Subject), k = 5)
+  
+  print("past folds")
+  for (i in 1:5) {
+  #train and test
+    col = paste0("Fold", i)
+    indx = unlist(folds[col])
+
+  train<- df[-indx,]
+  print(nrow(train))
+  test<- df[indx, ]
+  print(nrow(test))
+  
+  
+  # run model
+  wrist.full = glm(Label ~. -Subject, family = "binomial", data = train)
+#summary(wrist.full)
+
+pred.test = wrist.full %>% predict(test, type= "response")
+fitted_probs = c(fitted_probs, pred.test)
+pred.test = ifelse(pred.test>0.5, 1,0)
+predicted_values = c(predicted_values, pred.test)
+actual_values = c(actual_values, test$Label)
+
+
+  subject = c(subject, test$Subject)
+  fold_no = c(fold_no, rep(i, nrow(test)))
+  
+  
+  
+  #acc1 = mean(test1$Label==pred.test)
+  #fold_accuracies = c(fold_accuracies, acc1)
+  
+  # add function to compute f1
+  # blah
+}
+  #train on training set
+  #test on testing set 
+  #predict labels
+  #find accuracy and f1, add to fold_accuracies and fold_f1
+  #put predicted values in predicted_values
+  #put actual values in actual_values
+  
+  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
+        fold_no, subject))
+  
+  return(cvoutput)
+}
+
+wristcvoutput = kfoldcv_wrist_full(scaled_wrist_only)
+```
+
+```{r wrist-kfold-res}
+fold1 = wristcvoutput %>%
+  filter(subject=="S11")
+
+mean(fold1$actual_values==fold1$predicted_value)
+```
+
+# Combo PCA
+
+```{r pca}
+scaled_select_cov_nb = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
+  
+res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 5)
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+```{r pca-cont}
+var <- get_pca_var(res.pca)
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb))
+
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
+fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
+```
+
+```{r pca-vars}
+pca_vals <- as.data.frame(res.pca$ind$coord)
+pca_vals$Label = remove_select_cov$Label
+pca_vals$Subject = remove_select_cov$Subject
+```
+
+# Combo Model
+
+```{r combo-model}
+smp_size <- floor(0.75 * nrow(pca_vals))
+train_ind <- sample(seq_len(nrow(pca_vals)), size = smp_size)
+train_pca <- pca_vals[train_ind, ]
+test_pca <- pca_vals[-train_ind, ]
+
+# COMBO PCA MODEL model without Subject 
+pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
+
+summary(pca.model)
+
+pred.test = pca.model %>% predict(test_pca, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_pca$Label==pred.test)
+```
+
+```{r combo-stepwise-glmnet}
+# stepwise
+step.wrist.model = pca.model %>% stepAIC(trace=FALSE)
+summary(step.wrist.model)
+
+#convert training data to matrix format
+train_pca_x = train_pca %>% 
+  dplyr::select(-Label) %>%
+  mutate(Subject = as.factor(Subject))
+
+x <- data.matrix(train_pca_x)
+y <- train_pca$Label
+lasso.fit = glmnet(x, y, alpha = 1, family = "binomial")
+plot(lasso.fit)
+elasticnet.fit = glmnet(x, y, alpha = 0.5, family = "binomial")
+plot(elasticnet.fit)
+```
+
+# Combo K-Fold CV
+
+```{r combo-kfold-cv}
+set.seed(123)
+
+kfoldcv_wrist_full = function(df) {
+  
+  actual_values = c()
+  predicted_values = c()
+  fitted_probs = c()
+  
+  # fold_accuracies = c()
+  # fold_f1 = c()
+  
+  fold_no = c()
+  subject = c()
+  
+  print("at folds")
+  folds <- createFolds(factor(df$Subject), k = 5)
+  
+  print("past folds")
+  for (i in 1:5) {
+  #train and test
+    col = paste0("Fold", i)
+    indx = unlist(folds[col])
+
+  train<- df[-indx,]
+  print(nrow(train))
+  test<- df[indx, ]
+  print(nrow(test))
+  
+  
+  # run model
+  wrist.full = glm(Label ~. -Subject, family = "binomial", data = train)
+#summary(wrist.full)
+
+pred.test = wrist.full %>% predict(test, type= "response")
+fitted_probs = c(fitted_probs, pred.test)
+pred.test = ifelse(pred.test>0.5, 1,0)
+predicted_values = c(predicted_values, pred.test)
+actual_values = c(actual_values, test$Label)
+
+
+  subject = c(subject, test$Subject)
+  fold_no = c(fold_no, rep(i, nrow(test)))
+  
+  
+  
+  #acc1 = mean(test1$Label==pred.test)
+  #fold_accuracies = c(fold_accuracies, acc1)
+  
+  # add function to compute f1
+  # blah
+}
+  #train on training set
+  #test on testing set 
+  #predict labels
+  #find accuracy and f1, add to fold_accuracies and fold_f1
+  #put predicted values in predicted_values
+  #put actual values in actual_values
+  
+  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
+        fold_no, subject))
+  
+  return(cvoutput)
+}
+
+combocvoutput = kfoldcv_wrist_full(pca_vals)
+```
+
+```{r combo-kfold-res}
+fold1 = combocvoutput %>%
+  filter(subject=="S11")
+
+mean(fold1$actual_values==fold1$predicted_value)
+```
+
+# IV. Results
+
+# Final Model
+
+```{r}
+# HOPEFULLY THE RIGHT ONE model with no main effect for Subject but with interactions
+pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
+                  +Dim.2:Subject
+                  +Dim.3:Subject
+                  +Dim.4:Subject
+                  +Dim.5:Subject
+                 , family = binomial(link="logit"), data=train_pca)
+
+summary(pca.model.interact)
+
+pred.test = pca.model.interact %>% predict(test_pca, type= "response")
+pred.test = ifelse(pred.test>0.5, 1,0)
+
+mean(test_pca$Label==pred.test)
+
+F1_Score(test_pca$Label, pred.test, positive = NULL)
+confusionMatrix(as.factor(pred.test), as.factor(test_pca$Label))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Appendix
+
+```{r rmssd-calc}
+# IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
+# 
+# RMSSD_calc = function(df, peaks) {
+#   # for (i in 1:nrow(df)) {
+#   #   if (i <= nrow(df)-peaks)
+#   vals = rollapply(df[,2], width = peaks, by = 1, FUN = rmssd, align = "left")
+#   #}
+#   
+#   return(vals)
+# }
+# 
+# hrv = RMSSD_calc(IBI_data_3, 3)
+# IBI_data_3[1:length(hrv),3] = hrv
+# colnames(IBI_data_3)[3] = "HRV"
+# IBI_data_3 = na.omit(IBI_data_3)
+```
+
+```{r hrv-to-hz}
+# hz_format = function(df, win_size) {
+#   mu_vals = NULL
+#   sd_vals = NULL
+#   
+#   for (i in 1:nrow(df)) {
+#     #if (i <= nrow(df)-win_size)
+#     nexttime = df[i,1] + win_size
+#       # browser()
+#     
+#     #print(nexttime)
+#     if (i+1 <= nrow(df)) {
+# 
+#     for (j in i+1:nrow(df)) {
+#            # print(df[j,1])
+#       if (!is.na(df[j,1])) {
+#       #   print(df[j,1]==nexttime)
+#       # if (df[j,1]==nexttime) {
+#       #   stoprow = j
+#       # }
+#         # print(i)
+#         # print(j)
+#         # print(df[j,1])
+#         # print(nexttime)
+#       if ((df[j,1] >= nexttime) & (df[j-1,1]<nexttime)) {
+#         stoprow = j-1
+#       }
+#       }
+#     }
+#     mu_vals = c(mu_vals, mean(df[i:stoprow, 3]))
+#     sd_vals = c(sd_vals, sqrt(var(df[i:stoprow, 3])))
+#     
+#     }
+#   }
+#   
+#   return(list(hrv_mu = mu_vals, hrv_sd = sd_vals))
+# }
+
+# test = hz_format(IBI_data_3, 5)
+```
