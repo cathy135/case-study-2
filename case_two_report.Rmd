@@ -451,10 +451,10 @@ kfoldcv_wrist_full = function(df) {
   
   
   # run model
-  wrist.full = glm(Label ~. -Subject, family = "binomial", data = train)
+pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
 #summary(wrist.full)
 
-pred.test = wrist.full %>% predict(test, type= "response")
+pred.test = pca.model %>% predict(test, type= "response")
 fitted_probs = c(fitted_probs, pred.test)
 pred.test = ifelse(pred.test>0.5, 1,0)
 predicted_values = c(predicted_values, pred.test)
@@ -520,7 +520,85 @@ confusionMatrix(as.factor(pred.test), as.factor(test_pca$Label))
 ```
 
 
+```{r combo-kfold-cv}
+set.seed(123)
 
+kfoldcv_wrist_full = function(df) {
+  
+  actual_values = c()
+  predicted_values = c()
+  fitted_probs = c()
+  
+  # fold_accuracies = c()
+  # fold_f1 = c()
+  
+  fold_no = c()
+  subject = c()
+  
+  print("at folds")
+  folds <- createFolds(factor(df$Subject), k = 5)
+  
+  print("past folds")
+  for (i in 1:5) {
+  #train and test
+    col = paste0("Fold", i)
+    indx = unlist(folds[col])
+
+  train<- df[-indx,]
+  print(nrow(train))
+  test<- df[indx, ]
+  print(nrow(test))
+  
+  
+  # run model
+pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.5+Dim.1:Subject
+                  +Dim.2:Subject
+                  +Dim.3:Subject
+                  +Dim.4:Subject
+                  +Dim.5:Subject
+                 , family = binomial(link="logit"), data=train_pca)
+#summary(wrist.full)
+
+pred.test = pca.model %>% predict(test, type= "response")
+fitted_probs = c(fitted_probs, pred.test)
+pred.test = ifelse(pred.test>0.5, 1,0)
+predicted_values = c(predicted_values, pred.test)
+actual_values = c(actual_values, test$Label)
+
+
+  subject = c(subject, test$Subject)
+  fold_no = c(fold_no, rep(i, nrow(test)))
+  
+  
+  
+  #acc1 = mean(test1$Label==pred.test)
+  #fold_accuracies = c(fold_accuracies, acc1)
+  
+  # add function to compute f1
+  # blah
+}
+  #train on training set
+  #test on testing set 
+  #predict labels
+  #find accuracy and f1, add to fold_accuracies and fold_f1
+  #put predicted values in predicted_values
+  #put actual values in actual_values
+  
+  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
+        fold_no, subject))
+  
+  return(cvoutput)
+}
+
+finalcvoutput = kfoldcv_wrist_full(pca_vals)
+```
+
+```{r final-kfold-res}
+fold1 = finalcvoutput %>%
+  filter(subject=="S11")
+
+mean(fold1$actual_values==fold1$predicted_value)
+```
 
 
 
