@@ -21,6 +21,7 @@ library(factoextra)
 library(MASS)
 library(caret)
 library(MLmetrics)
+library(pROC)
 ```
 
 # I. Introduction
@@ -414,8 +415,17 @@ pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test_pca$Label==pred.test)
 
+est = summary(pca.model)$coefficients[,1]
+SE = summary(pca.model)$coefficients[,2]
+ci = confint(pca.model)
+
+combo_model_tab = data.frame(cbind(est,SE,ci))
+colnames(combo_model_tab) = c("Estimate", "SE", "2.5%", "97.5%")
+kable(combo_model_tab)
 #TABLE FOR COEFFICIENTS CATHY
 ```
+A increase of one in the standard deviation for motion and dermal temperature and activity is associated with a multiplicative increase in the odds that the state is stress. A increase of one in the standard deviation of heart rate and muscular nerve activity is associated with a multiplicative decrease in the odds that the state is stress.
+
 
 ```{r combo-stepwise-glmnet}
 # stepwise
@@ -544,19 +554,12 @@ as.table(confusionMatrix(as.factor(wristcvoutput$predicted_values), as.factor(wr
 ```
 
 # cathy just try to fix this
-```{r}
-# library(plotROC)
-# ggplot(combocvoutput, aes(d=actual_values, m = fitted_probs)) + 
-#   geom_roc(n.cuts = 0) + 
-#   geom_abline(intercept = 0)
-# library(pROC)
-# 
-# object = roc(as.factor(combocvoutput$actual_values),  as.factor(combocvoutput$predicted_values))
-# plot.roc(x= combocvoutput$actual_values, y = combocvoutput$fitted_probs)
-# 
-# aug <- augment(pca.model.interact, type.predict = "response", 
-#                      type.residuals = "response")
-#roc(combocvoutput$actual_values,combocvoutput$predicted_values)$auc
+
+```{r roc-curve}
+roc_object = roc(as.numeric(combocvoutput$actual_values), as.numeric(combocvoutput$predicted_values, direction="<"))
+plot(roc_object,
+     col="black", lwd=3, main="ROC Plot for Final Model")
+auc(roc_object)
 ```
 
 # IV. Results
@@ -733,14 +736,12 @@ plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject"
 #plot_model(pca.model.interact, type = "int")#, terms = c("Dim.1 [all]", "Subject"))
 #summary(pca.model.interact)
 ```
-As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the odds of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][].
+As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the fitted probability of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][].
 
 ```{r int-2}
 plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject")) +
   scale_fill_manual(values = mycolors)  
 ```
-
-if stress = 1, then those on the right are ppl whose odds of stress increases as they get 
 As Dermal Temperature and Activity increases, 
 Weird people: 2,7,13
 
@@ -748,8 +749,7 @@ Weird people: 2,7,13
 plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
   scale_fill_manual(values = mycolors) 
 ```
-cathy
-Weird people: 5, 6, 9, 17
+As the variation in heart rate increases, the fitted probabilities (where stress is 1) decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][].
 
 ```{r int-4}
 plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject")) +
