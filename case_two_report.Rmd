@@ -478,7 +478,7 @@ kfoldcv_no_subject = function(df) {
   
   
   # run model
-pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
+pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train)
 #summary(wrist.full)
 
 pred.test = pca.model %>% predict(test, type= "response")
