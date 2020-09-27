@@ -21,6 +21,8 @@ library(factoextra)
 library(MASS)
 library(caret)
 library(MLmetrics)
+library(pROC)
+library(gridExtra)
 ```
 
 # I. Introduction
@@ -150,42 +152,35 @@ remove_select_cov = ALL_df %>%
   dplyr::select(-contains("ACC_chest_Z_mean")) %>%
   dplyr::select(-contains("ACC_chest_3D_mean")) 
 
+# maybe reorder the variables
+col_order <- c("ACC_chest_X_sd", "ACC_chest_Y_sd", "ACC_chest_Z_sd", "ACC_chest_3D_sd", "EMG_mean", "EMG_sd", "Resp_mean", "Resp_sd", "EDA_wrist_mean", "EDA_wrist_sd", "TEMP_wrist_mean", "TEMP_wrist_sd",  "hr_wrist_mu", "hr_wrist_sd", "Subject", "Label")
+remove_select_cov <- remove_select_cov[, col_order]
+
+remove_select_cov$Subject <- factor(remove_select_cov$Subject, levels = c("S2", "S3","S4", "S5","S6", "S7","S8", "S9","S10", "S11","S13", "S14","S15", "S16","S17"))
 
 remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 1, 0)
 
 non_biological = c("Label", "Subject")
 remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
 
-# maybe reorder the variables
 cormatrix = cor(remove_select_cov_nb)
-corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
+corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb),  title="Fig. 1 Correlation Matrix of Engineered Features", mar=c(0,0,1,0))
 ```
+From the correlation matrix (Fig. 1), we see that the `ACC` variables (variables related to motion) are highly correlated. We also see some moderate correlation between `Resp` and `EDA` variables, as well as between `EDA` and `TEMP` variables.
 
 ```{r distrib-vs-label}
-varvslabel <- function(var){
-  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Label, 
-                                 group = remove_select_cov$Label)) +
-    geom_boxplot() +
-    labs(x ="Label", y = as.name(var))
-}
+p1=ggplot(remove_select_cov, aes(y=EDA_wrist_mean, x=factor(Label), group = factor(Label))) + geom_boxplot() + facet_grid(~Subject) +
+    labs(x ="State", y = "Mean EDA (wrist)", title = "Fig. 2 Distribution of Mean Wrist EDA by State for All Subjects")
 
-lapply(names(remove_select_cov_nb), varvslabel)
+p2=ggplot(remove_select_cov, aes(y=TEMP_wrist_mean, x=factor(Label), group = factor(Label))) + geom_boxplot() + facet_grid(~Subject) +
+    labs(x ="State", y = "Mean Temperature (wrist)", title = "Fig. 3 Distribution of Mean Wrist Temperature by State for All Subjects")
+
+p3=ggplot(remove_select_cov, aes(y=hr_wrist_mu, x=factor(Label), group = factor(Label))) + geom_boxplot() + facet_grid(~Subject) +
+    labs(x ="State", y = "Mean Heart Rate (wrist)", title = "Fig. 4 Distribution of Mean Heart Rate by State for All Subjects")
+
+grid.arrange(p1, p2, p3, nrow = 1)
 ```
-
-It appears from these boxplots (prob most all except Electrodermal Activity to appendix), the distribution of physiological measures don't differ much between the stress and amusement states, but the boxplot for EDA shows a difference in distribution.
-
-```{r subject-vs-covariates}
-varvssubj <- function(var){
-  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Subject, 
-                                 group = remove_select_cov$Subject)) +
-    geom_boxplot() +
-    labs(x ="Subject", y = as.name(var))
-}
-
-lapply(names(remove_select_cov_nb), varvssubj)
-```
-
-For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference in distribution across the subjects. For ECG and BVP variables, only the sd measure showed differences across subjects.
+After examining boxplots of the distribution of the physiological measures by state for each subject (see Appendix A.1 for all plots of this type), the variables that had the greatest difference in distribution between states and across subjects are `EDA_wrist_mean`, `Temp_wrist_mean`, and `hr_wrist_mu`. For all subjects, mean EDA values (Fig. 2) are higher in the stress state, and for subjects 3, 5, 6, 7, 10, 13, the difference in the distribution of EDA between the two states is more drastic then that of the other subjects. For `Temp_wrist_mean` (Fig. 3), we can see that for some subjects, their mean temperature tends to be higher in the stress state but for others, their mean temperatue tends to be lower when stressed. Likewise, for `hr_wrist_mu` (Fig. 4), we see that some subjects have higher average heart rate when stressed while others exhibit the opposite behavior. Among all of the other variables, it appears that the motion (`ACC`)  variables tend to show a higher distribtion for each subject under the stress state, and the `EMG` and `Resp` variables tend not to vary much in distribution between states across subjects. 
 
 # III. Methods
 
@@ -193,7 +188,6 @@ For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference 
 
 ```{r wristcorrplot}
 #ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
-
 wrist_only = ALL_df %>%
   dplyr::select(contains("wrist")) %>%
   dplyr::select(-contains("ACC_wrist_x_mean")) %>%
@@ -209,13 +203,21 @@ wrist_only = wrist_only %>%
   dplyr::select(-contains("min")) %>%
   dplyr::select(-contains("max")) 
 
+
+# maybe reorder the variables
+col_order <- c("ACC_wrist_x_sd", "ACC_wrist_y_sd", "ACC_wrist_z_sd", "ACC_wrist_3D_sd", "EDA_wrist_mean", "EDA_wrist_sd", "TEMP_wrist_mean", "TEMP_wrist_sd",  "hr_wrist_mu", "hr_wrist_sd", "Subject", "Label")
+wrist_only <- wrist_only[, col_order]
+
+wrist_only$Subject <- factor(wrist_only$Subject, levels = c("S2", "S3","S4", "S5","S6", "S7","S8", "S9","S10", "S11","S13", "S14","S15", "S16","S17"))
+
 non_biological = c("Label", "Subject")
 wrist_nb = wrist_only[ , !(names(wrist_only) %in% non_biological)]
 
 # maybe reorder the variables
 cormatrix = cor(wrist_nb)
-corrplot::corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.6, number.cex= 10/ncol(wrist_nb))
+corrplot::corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.6, number.cex= 8/ncol(wrist_nb), title="Fig. 5 Correlation Matrix of Engineered Features (Wrist Only)", mar=c(0,0,1,0))
 ```
+For the wrist only data, we see similar correlation structures as before (with all of the data). Motion variables are strongly correlated with each other, and there is some correlation between `EDA` and `TEMP` variables.
 
 # Wrist PCA
 
@@ -229,7 +231,7 @@ fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 
 ```{r pca-cont}
 var <- get_pca_var(res.pca)
-corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb))
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Fig. 6")
 
 fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
@@ -414,8 +416,17 @@ pred.test = ifelse(pred.test>0.5, 1,0)
 
 mean(test_pca$Label==pred.test)
 
+est = summary(pca.model)$coefficients[,1]
+SE = summary(pca.model)$coefficients[,2]
+ci = confint(pca.model)
+
+combo_model_tab = data.frame(cbind(est,SE,ci))
+colnames(combo_model_tab) = c("Estimate", "SE", "2.5%", "97.5%")
+kable(combo_model_tab)
 #TABLE FOR COEFFICIENTS CATHY
 ```
+A increase of one in the standard deviation for motion and dermal temperature and activity is associated with a multiplicative increase in the odds that the state is stress. A increase of one in the standard deviation of heart rate and muscular nerve activity is associated with a multiplicative decrease in the odds that the state is stress.
+
 
 ```{r combo-stepwise-glmnet}
 # stepwise
@@ -468,7 +479,7 @@ kfoldcv_no_subject = function(df) {
   
   
   # run model
-pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
+pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train)
 #summary(wrist.full)
 
 pred.test = pca.model %>% predict(test, type= "response")
@@ -544,19 +555,12 @@ as.table(confusionMatrix(as.factor(wristcvoutput$predicted_values), as.factor(wr
 ```
 
 # cathy just try to fix this
-```{r}
-# library(plotROC)
-# ggplot(combocvoutput, aes(d=actual_values, m = fitted_probs)) + 
-#   geom_roc(n.cuts = 0) + 
-#   geom_abline(intercept = 0)
-# library(pROC)
-# 
-# object = roc(as.factor(combocvoutput$actual_values),  as.factor(combocvoutput$predicted_values))
-# plot.roc(x= combocvoutput$actual_values, y = combocvoutput$fitted_probs)
-# 
-# aug <- augment(pca.model.interact, type.predict = "response", 
-#                      type.residuals = "response")
-#roc(combocvoutput$actual_values,combocvoutput$predicted_values)$auc
+
+```{r roc-curve}
+roc_object = roc(as.numeric(combocvoutput$actual_values), as.numeric(combocvoutput$predicted_values, direction="<"))
+plot(roc_object,
+     col="black", lwd=3, main="ROC Plot for Final Model")
+auc(roc_object)
 ```
 
 # IV. Results
@@ -588,7 +592,7 @@ pca_vals$predicted = pred.test
 ```{r combo-kfold-cv, warning = F}
 set.seed(123)
 
-kfoldcv_wrist_full = function(df) {
+kfoldcv_final = function(df) {
   
   actual_values = c()
   predicted_values = c()
@@ -620,10 +624,10 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                   +Dim.2:Subject
                   +Dim.3:Subject
                   +Dim.4:Subject
-                 , family = binomial(link="logit"), data=train_pca)
+                 , family = binomial(link="logit"), data=train)
 #summary(wrist.full)
 
-pred.test = pca.model %>% predict(test, type= "response")
+pred.test = pca.model.interact %>% predict(test, type= "response")
 fitted_probs = c(fitted_probs, pred.test)
 pred.test = ifelse(pred.test>0.5, 1,0)
 predicted_values = c(predicted_values, pred.test)
@@ -654,7 +658,7 @@ actual_values = c(actual_values, test$Label)
   return(cvoutput)
 }
 
-finalcvoutput = kfoldcv_wrist_full(pca_vals)
+finalcvoutput = kfoldcv_final(pca_vals)
 ```
 
 ```{r final-kfold-res}
@@ -733,14 +737,12 @@ plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject"
 #plot_model(pca.model.interact, type = "int")#, terms = c("Dim.1 [all]", "Subject"))
 #summary(pca.model.interact)
 ```
-As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the odds of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][].
+As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the fitted probability of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][].
 
 ```{r int-2}
 plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject")) +
   scale_fill_manual(values = mycolors)  
 ```
-
-if stress = 1, then those on the right are ppl whose odds of stress increases as they get 
 As Dermal Temperature and Activity increases, 
 Weird people: 2,7,13
 
@@ -748,8 +750,7 @@ Weird people: 2,7,13
 plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
   scale_fill_manual(values = mycolors) 
 ```
-cathy
-Weird people: 5, 6, 9, 17
+As the variation in heart rate increases, the fitted probabilities (where stress is 1) decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][].
 
 ```{r int-4}
 plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject")) +
@@ -759,6 +760,16 @@ malavi
 Weird people: 6,7,2,14,10
 
 # Appendix
+
+## A.1
+```{r var-label-subject-plot}
+varvslab<- function(var) {
+  ggplot(remove_select_cov, aes_(y=as.name(var), x=factor(remove_select_cov$Label), group = factor(remove_select_cov$Label))) + geom_boxplot() + facet_grid(~remove_select_cov$Subject) +
+    labs(x ="State", y = as.name(var))
+}
+lapply(names(remove_select_cov_nb), varvslab)
+```
+
 # put more sad functions if time permits
 ```{r rmssd-calc}
 # IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
