@@ -1,6 +1,7 @@
 ---
-title: "case_two_report"
-output: html_document
+title: "Case Two Report"
+authors: "Bob Ding, Cathy Lee, Malavi Ravindran"
+output: pdf_document
 ---
 
 RUNTIME: 
@@ -23,6 +24,10 @@ library(caret)
 library(MLmetrics)
 library(pROC)
 library(gridExtra)
+library(broom)
+library(knitr)
+library(sjPlot)
+library(RColorBrewer)
 ```
 
 # I. Introduction
@@ -168,7 +173,7 @@ corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4,
 ```
 From the correlation matrix (Fig. 1), we see that the `ACC` variables (variables related to motion) are highly correlated. We also see some moderate correlation between `Resp` and `EDA` variables, as well as between `EDA` and `TEMP` variables.
 
-```{r distrib-vs-label}
+```{r distrib-vs-label, echo=F, fig.width = 5, fig.height = 10}
 p1=ggplot(remove_select_cov, aes(y=EDA_wrist_mean, x=factor(Label), group = factor(Label))) + geom_boxplot() + facet_grid(~Subject) +
     labs(x ="State", y = "Mean EDA (wrist)", title = "Fig. 2 Distribution of Mean Wrist EDA by State for All Subjects")
 
@@ -186,7 +191,7 @@ After examining boxplots of the distribution of the physiological measures by st
 
 # Wrist Data Cleaning
 
-```{r wristcorrplot}
+```{r wristcorrplot,  echo=F, fig.width = 5, fig.height = 5}
 #ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
 wrist_only = ALL_df %>%
   dplyr::select(contains("wrist")) %>%
@@ -223,22 +228,22 @@ For the wrist only data, we see similar correlation structures as before (with a
 
 ```{r pca}
 scaled_wrist_nb = scale(wrist_nb, center = TRUE, scale = TRUE)
-res.pca <- PCA(scaled_wrist_nb, graph = FALSE, ncp = 5)
+res.pca <- PCA(scaled_wrist_nb, graph = FALSE, ncp = 4)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
 
-```{r pca-cont}
+```{r pca-cont,  echo=F, fig.width = 5, fig.height =5}
 var <- get_pca_var(res.pca)
-corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Fig. 6")
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Fig. 6 Quality of Representation Plot for Wrist PCA", mar=c(0,0,1,0))
 
 fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
-fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
 ```
+In the quality of representation plot above (Fig. 6 shows the importance of a principal component for a given observation), we can see that the principal components (with number of components being 4) are about variability in motion, dermal temperature and activity, heart rate, and variability in temperature.
 
 ```{r}
 wrist_pca_vals <- as.data.frame(res.pca$ind$coord)
@@ -263,12 +268,12 @@ test_wrist <- scaled_wrist_only[-train_ind, ]
 
 # OUR MODEL FOR WRIST
 wrist.full = glm(Label ~. -Subject, family = "binomial", data = train_wrist)
-summary(wrist.full)
-
-pred.test = wrist.full %>% predict(test_wrist, type= "response")
-pred.test = ifelse(pred.test>0.5, 1,0)
-
-mean(test_wrist$Label==pred.test)
+# summary(wrist.full)
+# 
+# pred.test = wrist.full %>% predict(test_wrist, type= "response")
+# pred.test = ifelse(pred.test>0.5, 1,0)
+# 
+# mean(test_wrist$Label==pred.test)
 ```
 
 ```{r wrist-stepwise-glmnet}
@@ -368,18 +373,18 @@ plot(elasticnet.fit)
 
 # Combo PCA
 
-```{r pca}
+```{r pca-combo}
 scaled_select_cov_nb = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
-  
+
 res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 4)
 eig.val <- get_eigenvalue(res.pca)
 eig.val
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
 
-```{r pca-cont}
+```{r pca-cont-combo,  echo=F, fig.width = 5, fig.height = 5}
 var <- get_pca_var(res.pca)
-corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb))
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Fig. 7 Quality of Representation Plot for All Data PCA")
 
 fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
@@ -387,12 +392,9 @@ fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
 #fviz_contrib(res.pca, choice = "var", axes = 5, top = 10)
 ```
-Dim1: Variability in movement over 5 secs
-Dim2: Dermal Temp and Activity
-Dim3: HR from wrist measurement
-Dim4: Muscular+Nerve activity+breathing
+From the plot above (Fig. 7), we see that the principal components are variability in movement (Dim.1), dermal temperature and activity (Dim.2), heart rate (Dim.3), and Neuro-muscular acitivity (Dim.4).
 
-```{r pca-vars}
+```{r pca-vars-combo}
 pca_vals <- as.data.frame(res.pca$ind$coord)
 pca_vals$Label = remove_select_cov$Label
 pca_vals$Subject = remove_select_cov$Subject
@@ -409,23 +411,22 @@ test_pca <- pca_vals[-train_ind, ]
 # COMBO PCA MODEL model without Subject  INTERPRET MAIN EFFECTS
 pca.model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train_pca)
 
-summary(pca.model)
+# summary(pca.model)
+# 
+# pred.test = pca.model %>% predict(test_pca, type= "response")
+# pred.test = ifelse(pred.test>0.5, 1,0)
+# 
+# mean(test_pca$Label==pred.test)
 
-pred.test = pca.model %>% predict(test_pca, type= "response")
-pred.test = ifelse(pred.test>0.5, 1,0)
-
-mean(test_pca$Label==pred.test)
-
-est = summary(pca.model)$coefficients[,1]
-SE = summary(pca.model)$coefficients[,2]
-ci = confint(pca.model)
+est = round(summary(pca.model)$coefficients[,1],2)
+SE = round(summary(pca.model)$coefficients[,2],2)
+ci = round(confint(pca.model),2)
 
 combo_model_tab = data.frame(cbind(est,SE,ci))
 colnames(combo_model_tab) = c("Estimate", "SE", "2.5%", "97.5%")
-kable(combo_model_tab)
-#TABLE FOR COEFFICIENTS CATHY
+kable(combo_model_tab, caption = "Estimate and Confidence Intervals for Coefficients in the All Data Model")
 ```
-A increase of one in the standard deviation for motion and dermal temperature and activity is associated with a multiplicative increase in the odds that the state is stress. A increase of one in the standard deviation of heart rate and muscular nerve activity is associated with a multiplicative decrease in the odds that the state is stress.
+A increase of one in the standard deviation for movement and dermal temperature and activity is associated with a multiplicative increase in the odds that the state is stress. A increase of one in the standard deviation of heart rate and neuro-muscular activity is associated with a multiplicative decrease in the odds that the state is stress.
 
 
 ```{r combo-stepwise-glmnet}
@@ -463,19 +464,19 @@ kfoldcv_no_subject = function(df) {
   fold_no = c()
   subject = c()
   
-  print("at folds")
+  #print("at folds")
   folds <- createFolds(factor(df$Subject), k = 5)
   
-  print("past folds")
+  #print("past folds")
   for (i in 1:5) {
   #train and test
     col = paste0("Fold", i)
     indx = unlist(folds[col])
 
   train<- df[-indx,]
-  print(nrow(train))
+  #print(nrow(train))
   test<- df[indx, ]
-  print(nrow(test))
+  #print(nrow(test))
   
   
   # run model
@@ -515,7 +516,6 @@ actual_values = c(actual_values, test$Label)
 
 combocvoutput = kfoldcv_no_subject(pca_vals)
 wristcvoutput = kfoldcv_no_subject(wrist_pca_vals)
-
 ```
 
 ```{r combo-kfold-res}
@@ -536,32 +536,32 @@ wrist_f1_per_fold = wristcvoutput %>%
   summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
 
 # REWMEMEVR TO ROUDN
-acc_f1_data <- matrix(c(mean(combo_acc_per_fold$accuracy),
-                  mean(wrist_acc_per_fold$accuracy),
-                  mean(combo_f1_per_fold$f1),
-                  mean(wrist_f1_per_fold$f1)),ncol=2,byrow=TRUE)
-colnames(acc_f1_data) <- c("Combo","Wrist")
+acc_f1_data <- matrix(c(round(mean(combo_acc_per_fold$accuracy),2),
+                  round(mean(wrist_acc_per_fold$accuracy),2),
+                  round(mean(combo_f1_per_fold$f1),2),
+                  round(mean(wrist_f1_per_fold$f1),2)),ncol=2,byrow=TRUE)
+colnames(acc_f1_data) <- c("All","Wrist")
 rownames(acc_f1_data) <- c("Accuracy","F1")
 acc_f1_tab <- as.table(acc_f1_data)
-library(broom)
-library(knitr)
-kable(acc_f1_tab, caption = "title")
+kable(acc_f1_tab, caption = "Accuracy and F1 for All Data and Wrist Models")
 ```
 
 ```{r}
 # add row and col names or get rid of kable
-kable(as.table(confusionMatrix(as.factor(combocvoutput$predicted_values), as.factor(combocvoutput$actual_values))))
-as.table(confusionMatrix(as.factor(wristcvoutput$predicted_values), as.factor(wristcvoutput$actual_values)))
-```
+combo_cm = as.table(confusionMatrix(as.factor(combocvoutput$predicted_values), as.factor(combocvoutput$actual_values)))
+colnames(combo_cm) = c("Actual Amusement", "Actual Stress")
+rownames(combo_cm) = c("Predicted Amusement", "Predicted Stress")
+#kable(combo_cm, title = "Confusion Matrix for All Data Model")
 
-# cathy just try to fix this
+wrist_cm = as.table(confusionMatrix(as.factor(wristcvoutput$predicted_values), as.factor(wristcvoutput$actual_values)))
+colnames(wrist_cm) = c("Actual Amusement", "Actual Stress")
+rownames(wrist_cm) = c("Predicted Amusement", "Predicted Stress")
+#kable(wrist_cm, title = "Confusion Matrix for Wrist Data Model")
 
-```{r roc-curve}
-roc_object = roc(as.numeric(combocvoutput$actual_values), as.numeric(combocvoutput$predicted_values, direction="<"))
-plot(roc_object,
-     col="black", lwd=3, main="ROC Plot for Final Model")
-auc(roc_object)
+knitr::kable(list(combo_cm, wrist_cm), title = "Confusion Matrices for All Data (left) and Wrist (right) Models")
+
 ```
+In Table 1 (and in the confusion matrices Table 2), we see the average accuracy and F1 results of 5-folds cross validation for a model using only wrist data and a model using both chest and wrist data. The model using both types of sensor data has higher accuracy and F1. 
 
 # IV. Results
 
@@ -695,6 +695,19 @@ final_f1_per_subj = finalcvoutput %>%
 # kable(acc_f1_tab, caption = "title")
 ```
 
+```{r cm-roc-curve,  echo=F, fig.width = 5, fig.height = 5}
+final_cm = as.table(confusionMatrix(as.factor(finalcvoutput$predicted_values), as.factor(finalcvoutput$actual_values)))
+colnames(final_cm) = c("Actual Amusement", "Actual Stress")
+rownames(final_cm) = c("Predicted Amusement", "Predicted Stress")
+kable(wrist_cm, title = "Confusion Matrix for Final  Model")
+
+roc_object = roc(as.numeric(finalcvoutput$actual_values), as.numeric(finalcvoutput$predicted_values, direction="<"))
+plot(roc_object,
+     col="black", lwd=3, main="Fig. 8 ROC Plot for Final Model")
+```
+The ROC curve (Fig. 8) shows that our final model (using both chest and wrist data and including interactions for Subject) discriminates moderately well between the stress and amusement states. Specifically, the area under the curve is `r auc(roc_object)`.
+
+
 # Interaction Plot
 
 ```{r}
@@ -721,41 +734,37 @@ final_f1_per_subj = finalcvoutput %>%
 #   ylim(0,1)
 ```
 
-```{r}
-install.packages("sjPlot")
-library(sjPlot)
-
-library(RColorBrewer)
+```{r,  echo=F, fig.width = 5, fig.height = 10}
 # Define the number of colors you want
 nb.cols <- 15
 mycolors <- colorRampPalette(brewer.pal(8, "Set2"))(nb.cols)
 
-plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject")) +
-  scale_fill_manual(values = mycolors)  
-#summary(pca.model.interact)
+p1=plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors) +  
+  scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
+  labs(title = "Fig. 9 Marginal Effects of Motion")
 
-#plot_model(pca.model.interact, type = "int")#, terms = c("Dim.1 [all]", "Subject"))
-#summary(pca.model.interact)
+p2=plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors)  +
+  scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
+  labs(title = "Fig. 10 Marginal Effects of Dermal Temperature and Activity")
+grid.arrange(p1, p2, nrow = 1)
 ```
-As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the fitted probability of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][].
+As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the fitted probability of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][]. As the variation in mean dermal temperature and activity increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S2, S7, and S13. For these three subjects, the fitted probabilities decrease This behavior can be corroborated by Table [][][] in Appendix [][][].
 
-```{r int-2}
-plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject")) +
-  scale_fill_manual(values = mycolors)  
+```{r int-3-4, fig.width = 10, fig.height = 5}
+p3 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors)  +
+  scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
+  labs(title = "Fig. 11 Marginal Effects of Heart Rate")
+p4 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject")) +
+  scale_fill_manual(values = mycolors)  +
+  scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
+  labs(title = "Fig. 12 Marginal Effects of Neuro-Muscular Activity")
+grid.arrange(p3, p4, nrow = 1)
 ```
-As Dermal Temperature and Activity increases, 
-Weird people: 2,7,13
+As the variation in mean heart rate increases, the fitted probabilities (where stress is 1) decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][].
 
-```{r int-3}
-plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
-  scale_fill_manual(values = mycolors) 
-```
-As the variation in heart rate increases, the fitted probabilities (where stress is 1) decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][].
-
-```{r int-4}
-plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject")) +
-  scale_fill_manual(values = mycolors) 
-```
 malavi
 Weird people: 6,7,2,14,10
 
@@ -767,7 +776,7 @@ varvslab<- function(var) {
   ggplot(remove_select_cov, aes_(y=as.name(var), x=factor(remove_select_cov$Label), group = factor(remove_select_cov$Label))) + geom_boxplot() + facet_grid(~remove_select_cov$Subject) +
     labs(x ="State", y = as.name(var))
 }
-lapply(names(remove_select_cov_nb), varvslab)
+do.call(grid.arrange, lapply(names(remove_select_cov_nb), varvslab))
 ```
 
 # put more sad functions if time permits
