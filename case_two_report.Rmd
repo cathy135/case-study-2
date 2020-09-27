@@ -168,7 +168,7 @@ corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4,
 From the correlation matrix (Fig. 1), we see that the `ACC` variables (variables related to motion) are highly correlated. We also see some moderate correlation between `Resp` and `EDA` variables, as well as between `EDA` and `TEMP` variables.
 
 ```{r distrib-vs-label}
-ggplot(remove_select_cov, aes(y=EDA_wrist_mean, x=Label, group = Label)) + geom_boxplot() +
+ggplot(remove_select_cov, aes(y=EDA_wrist_mean, x=factor(Subject), fill = factor(Label))) + geom_boxplot() +
     labs(x ="State", y = "EDA mean (wrist)", title = "Fig. 2 Distribution of Mean Wrist EDA by State")
 ```
 After examining boxplots of the distribution of the physiological measures by state, it (Appendix A.1), it appears that only the boxplot for `EDA_wrist_mean` shows a difference in distribution between the stress and amusement states. Specifically, the boxplot (Fig. 2) shows that EDA measured on the wrist stress to have higher values during the stress state.
@@ -176,7 +176,7 @@ After examining boxplots of the distribution of the physiological measures by st
 ```{r subject-vs-covariates}
 varvssubj <- function(var){
   ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Subject, 
-                                 group = remove_select_cov$Subject)) +
+                                 fill = remove_select_cov$Label)) +
     geom_boxplot() +
     labs(x ="Subject", y = as.name(var))
 }
@@ -623,10 +623,10 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                   +Dim.2:Subject
                   +Dim.3:Subject
                   +Dim.4:Subject
-                 , family = binomial(link="logit"), data=train_pca)
+                 , family = binomial(link="logit"), data=train)
 #summary(wrist.full)
 
-pred.test = pca.model %>% predict(test, type= "response")
+pred.test = pca.model.interact %>% predict(test, type= "response")
 fitted_probs = c(fitted_probs, pred.test)
 pred.test = ifelse(pred.test>0.5, 1,0)
 predicted_values = c(predicted_values, pred.test)
