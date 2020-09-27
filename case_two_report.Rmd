@@ -151,29 +151,27 @@ remove_select_cov = ALL_df %>%
   dplyr::select(-contains("ACC_chest_Z_mean")) %>%
   dplyr::select(-contains("ACC_chest_3D_mean")) 
 
+# maybe reorder the variables
+col_order <- c("ACC_chest_X_sd", "ACC_chest_Y_sd", "ACC_chest_Z_sd", "ACC_chest_3D_sd", "EMG_mean", "EMG_sd", "Resp_mean", "Resp_sd", "EDA_wrist_mean", "EDA_wrist_sd", "TEMP_wrist_mean", "TEMP_wrist_sd",  "hr_wrist_mu", "hr_wrist_sd", "Subject", "Label")
+remove_select_cov <- remove_select_cov[, col_order]
 
 remove_select_cov$Label <- ifelse(remove_select_cov$Label=="2", 1, 0)
 
 non_biological = c("Label", "Subject")
 remove_select_cov_nb = remove_select_cov[ , !(names(remove_select_cov) %in% non_biological)]
 
-# maybe reorder the variables
+
+
 cormatrix = cor(remove_select_cov_nb)
-corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb))
+corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb),  title="Fig. 1 Correlation Matrix of Engineered Features", mar=c(0,0,1,0))
 ```
+From the correlation matrix (Fig. 1), we see that the `ACC` variables (variables related to motion) are highly correlated. We also see some moderate correlation between `Resp` and `EDA` variables, as well as between `EDA` and `TEMP` variables.
 
 ```{r distrib-vs-label}
-varvslabel <- function(var){
-  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Label, 
-                                 group = remove_select_cov$Label)) +
-    geom_boxplot() +
-    labs(x ="Label", y = as.name(var))
-}
-
-lapply(names(remove_select_cov_nb), varvslabel)
+ggplot(remove_select_cov, aes(y=EDA_wrist_mean, x=Label, group = Label)) + geom_boxplot() +
+    labs(x ="State", y = "EDA mean (wrist)", title = "Fig. 2 Distribution of Mean Wrist EDA by State")
 ```
-
-It appears from these boxplots (prob most all except Electrodermal Activity to appendix), the distribution of physiological measures don't differ much between the stress and amusement states, but the boxplot for EDA shows a difference in distribution.
+After examining boxplots of the distribution of the physiological measures by state, it (Appendix A.1), it appears that only the boxplot for `EDA_wrist_mean` shows a difference in distribution between the stress and amusement states. Specifically, the boxplot (Fig. 2) shows that EDA measured on the wrist stress to have higher values during the stress state.
 
 ```{r subject-vs-covariates}
 varvssubj <- function(var){
@@ -187,6 +185,8 @@ lapply(names(remove_select_cov_nb), varvssubj)
 ```
 
 For ACC, EDA, Temp, and HR variables, the mean, min, max data showed difference in distribution across the subjects. For ECG and BVP variables, only the sd measure showed differences across subjects.
+
+`EDA_wrist_mean`, `TEMP_wrist_mean`
 
 # III. Methods
 
@@ -591,7 +591,7 @@ pca_vals$predicted = pred.test
 ```{r combo-kfold-cv, warning = F}
 set.seed(123)
 
-kfoldcv_wrist_full = function(df) {
+kfoldcv_final = function(df) {
   
   actual_values = c()
   predicted_values = c()
@@ -657,7 +657,7 @@ actual_values = c(actual_values, test$Label)
   return(cvoutput)
 }
 
-finalcvoutput = kfoldcv_wrist_full(pca_vals)
+finalcvoutput = kfoldcv_final(pca_vals)
 ```
 
 ```{r final-kfold-res}
@@ -759,6 +759,19 @@ malavi
 Weird people: 6,7,2,14,10
 
 # Appendix
+
+## A.1
+```{r}
+varvslabel <- function(var){
+  ggplot(remove_select_cov, aes_(y=as.name(var), x=remove_select_cov$Label, 
+                                 group = remove_select_cov$Label)) +
+    geom_boxplot() +
+    labs(x ="Label", y = as.name(var))
+}
+
+lapply(names(remove_select_cov_nb), varvslabel)
+```
+
 # put more sad functions if time permits
 ```{r rmssd-calc}
 # IBI_data_3 = read.csv("~/case-study-2/WESAD/S3/S3_E4_Data/IBI.csv")
