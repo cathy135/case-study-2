@@ -27,10 +27,6 @@ library(gridExtra)
 library(grid)
 library(broom)
 library(knitr)
-```
-
-
-```{r}
 library(sjPlot)
 library(RColorBrewer)
 library(kableExtra)
@@ -189,16 +185,17 @@ p2=ggplot(remove_select_cov, aes(y=TEMP_wrist_mean, x=factor(Label), group = fac
 p3=ggplot(remove_select_cov, aes(y=hr_wrist_mu, x=factor(Label), group = factor(Label))) + geom_boxplot() + facet_grid(~Subject) +
     labs(x ="State", y = "Mean Heart Rate (wrist)", title = "Fig. 4 Distribution of Mean Heart Rate by State for All Subjects")
 
-grid.arrange(p1, p2, p3, nrow = 1)
+grid.arrange(p1, p2, p3, nrow = 3)
 ```
-After examining boxplots of the distribution of the physiological measures by state for each subject (see Appendix A.1 for all plots of this type), the variables that had the greatest difference in distribution between states and across subjects are `EDA_wrist_mean`, `Temp_wrist_mean`, and `hr_wrist_mu`. For all subjects, mean EDA values (Fig. 2) are higher in the stress state, and for subjects 3, 5, 6, 7, 10, 13, the difference in the distribution of EDA between the two states is more drastic then that of the other subjects. For `Temp_wrist_mean` (Fig. 3), we can see that for some subjects, their mean temperature tends to be higher in the stress state but for others, their mean temperatue tends to be lower when stressed. Likewise, for `hr_wrist_mu` (Fig. 4), we see that some subjects have higher average heart rate when stressed while others exhibit the opposite behavior. Among all of the other variables, it appears that the motion (`ACC`)  variables tend to show a higher distribtion for each subject under the stress state, and the `EMG` and `Resp` variables tend not to vary much in distribution between states across subjects. 
+After examining boxplots of the distribution of the physiological measures by state for each subject (see Appendix A.1 for all plots of this type), the variables that had the greatest difference in distribution between states and across subjects are `EDA_wrist_mean`, `Temp_wrist_mean`, and `hr_wrist_mu`. For all subjects, mean EDA values (Fig. 2) are higher in the stress state, and for subjects 3, 5, 6, 7, 10, 13, the difference in the distribution of EDA between the two states is more drastic then that of the other subjects. For `Temp_wrist_mean` (Fig. 3), we can see that for some subjects, their mean temperature tends to be higher in the stress state but for others, their mean temperatue tends to be lower when stressed. Likewise, for `hr_wrist_mu` (Fig. 4), we see that some subjects have higher average heart rate when stressed while others exhibit the opposite behavior. Among all of the other variables, it appears that the motion (`ACC`)  variables tend to show a higher distribtion for each subject under the stress state, and the `EMG` and `Resp` variables tend not to vary much in distribution between states across subjects. In addition, it is important to note that for certain subjects (such as subject 13), there is no overlap in mean EDA values or mean Temperature values between the two states. This is likely to cause perfect separation in logistic regression (see Conclusion for a discussion on potential changes to the experimental design to deal with this issue).
 
 # III. Methods
 
 # Wrist Data Cleaning
 
 ```{r wristcorrplot,  echo=F, fig.width = 5, fig.height = 5}
-#ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
+ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
+
 wrist_only = ALL_df %>%
   dplyr::select(contains("wrist")) %>%
   dplyr::select(-contains("ACC_wrist_x_mean")) %>%
@@ -210,7 +207,7 @@ wrist_only = cbind(wrist_only, as.data.frame(ALL_df$Subject), as.data.frame(ALL_
 wrist_only = wrist_only %>%
   rename(Subject = `ALL_df$Subject`) %>%
   rename(Label = `ALL_df$Label`) %>%
-  mutate(Label = ifelse(Label==2, 1, 0))# %>%
+  mutate(Label = ifelse(Label==2, 1, 0)) %>%
   dplyr::select(-contains("min")) %>%
   dplyr::select(-contains("max"))
 
@@ -796,7 +793,7 @@ do.call(grid.arrange, lapply(names(remove_select_cov_nb), varvslab))
 ## A.2
 ```{r}
 minmax<- function(var) {
-  ggplot(min_max_col, aes_(y=as.name(var))) + geom_boxplot() +
+  ggplot(ALL_df, aes_(y=as.name(var))) + geom_boxplot() +
     labs(x ="State", y = as.name(var))
 }
 
