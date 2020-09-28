@@ -225,7 +225,6 @@ wrist_nb = wrist_only[ , !(names(wrist_only) %in% non_biological)]
 cormatrix = cor(wrist_nb)
 corrplot::corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.6, number.cex= 8/ncol(wrist_nb), title="Fig. 5 Correlation Matrix of Engineered Features (Wrist Only)", mar=c(0,0,1,0))
 ```
-For the wrist only data, we see similar correlation structures as before (with all of the data). Motion variables are strongly correlated with each other, and there is some correlation between `EDA` and `TEMP` variables.
 
 # Wrist PCA
 
@@ -246,7 +245,6 @@ fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 3, top = 10)
 fviz_contrib(res.pca, choice = "var", axes = 4, top = 10)
 ```
-In the quality of representation plot above (Fig. 6 shows the importance of a principal component for a given observation), we can see that the principal components (with number of components being 4) are about variability in motion, dermal temperature and activity, heart rate, and variability in temperature.
 
 ```{r}
 wrist_pca_vals <- as.data.frame(res.pca$ind$coord)
@@ -586,17 +584,6 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                  , family = binomial(link="logit"), data=pca_vals)
 
 summary(pca.model.interact)
-
-pred.test = pca.model.interact %>% predict(pca_vals, type= "response")
-pca_vals$fitted = pred.test
-pred.test = ifelse(pred.test>0.5, 1,0)
-pca_vals$predicted = pred.test
-
-# 
-# mean(test_pca$Label==pred.test)
-# 
-# F1_Score(test_pca$Label, pred.test, positive = NULL)
-# confusionMatrix(as.factor(pred.test), as.factor(test_pca$Label))
 ```
 
 ```{r combo-kfold-cv, warning = F}
@@ -672,9 +659,6 @@ finalcvoutput = kfoldcv_final(pca_vals)
 ```
 
 ```{r final-kfold-res}
-
-#MALAVI ADD FOR SUBJECT
-
 final_acc_per_fold = finalcvoutput %>%
   group_by(fold_no) %>%
   summarize(accuracy = mean(actual_values==predicted_values))
@@ -683,26 +667,20 @@ final_f1_per_fold = finalcvoutput %>%
   group_by(fold_no) %>%
   summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
 
-final_acc_per_subj = finalcvoutput %>%
-  group_by(subject) %>%
-  summarize(accuracy = mean(actual_values==predicted_values))
-
-final_f1_per_subj = finalcvoutput %>%
-  group_by(subject) %>%
-  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+# final_acc_per_subj = finalcvoutput %>%
+#   group_by(subject) %>%
+#   summarize(accuracy = mean(actual_values==predicted_values))
+# 
+# final_f1_per_subj = finalcvoutput %>%
+#   group_by(subject) %>%
+#   summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
 
 # REWMEMEVR TO ROUDN
-# acc_f1_data <- matrix(c(mean(combo_acc_per_fold$accuracy),
-#                   mean(wrist_acc_per_fold$accuracy),
-#                   "", "",
-#                   mean(combo_f1_per_fold$f1),
-#                   mean(wrist_f1_per_fold$f1)),ncol=2,byrow=TRUE)
-# # colnames(acc_f1_data) <- c("Combo","Wrist")
-# # rownames(acc_f1_data) <- c("Accuracy","F1")
-# acc_f1_tab <- as.table(acc_f1_data)
-# library(broom)
-# library(knitr)
-# kable(acc_f1_tab, caption = "title")
+acc_f1_data <- matrix(c(mean(final_acc_per_fold$accuracy),
+                  mean(final_f1_per_fold$f1),ncol=2,byrow=TRUE)
+colnames(acc_f1_data) <- c("Accuracy","F1")
+acc_f1_tab <- as.table(acc_f1_data)
+kable(acc_f1_tab, caption = "Accuracy and f1 for Final Model")
 ```
 
 ```{r cm-roc-curve,  echo=F, fig.width = 5, fig.height = 5}
@@ -715,34 +693,7 @@ roc_object = roc(as.numeric(finalcvoutput$actual_values), as.numeric(finalcvoutp
 plot(roc_object,
      col="black", lwd=3, main="Fig. 8 ROC Plot for Final Model")
 ```
-The ROC curve (Fig. 8) shows that our final model (using both chest and wrist data and including interactions for Subject) discriminates moderately well between the stress and amusement states. Specifically, the area under the curve is `r auc(roc_object)`.
 
-
-# Interaction Plot
-
-```{r}
-# ggplot(data = pca_vals %>% filter(Subject %in% c("S4", "S9", "S13", "S17")), aes(x = Dim.1, y = predicted, color = as.factor(Subject))) +
-#   #geom_point() +
-#   geom_jitter(width = 0.2, height = 0.1, size = 0.3) +
-#   #geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
-#  #             size = 2, se = F, aes(color = as.factor(Subject))) +
-#   geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
-#               size = 0.5, se = F, fullrange = T, aes(color = as.factor(Subject))) +
-#   #geom_dl(aes(label = Subject), method = list(dl.combine("first.points", "last.points")))+
-#   labs(color = "Subject", y = "Pr(Amusement State)") +
-#   ylim(0,1)
-# 
-# ggplot(data = pca_vals , aes(x = Dim.1, y = predicted, color = as.factor(Subject))) +
-#   #geom_point() +
-#   geom_jitter(width = 0.2, height = 0.1, size = 0.3) +
-#   #geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
-#  #             size = 2, se = F, aes(color = as.factor(Subject))) +
-#   geom_smooth(method = 'glm', method.args = list(family = 'binomial'), 
-#               size = 0.5, se = F, fullrange = T, aes(color = as.factor(Subject))) +
-#   geom_dl(aes(label = Subject), method = list(dl.combine("first.points", "last.points")))+
-#   labs(color = "Subject", y = "Pr(Amusement State)") +
-#   ylim(0,1)
-```
 
 ```{r, echo=F, fig.width = 10, fig.height = 5}
 # Define the number of colors you want
@@ -760,9 +711,9 @@ p2=plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subje
   labs(title = "Fig. 10 Marginal Effects of Dermal Temperature and Activity")
 grid.arrange(p1, p2, nrow = 1)
 ```
-As the variation in motion increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S13 and S2. We note for S13 and S2 that as the variability of motion becomes gerater, the fitted probability of stress changes increase by a smaller amount. However, all subject exhibit a similar increasing trend. This behavior can be corroborated by Table [][][] in Appendix [][][]. As the variation in mean dermal temperature and activity increases, the fitted probabilities (where stress is 1) increases similarly for all subjects except for S2, S7, and S13. For these three subjects, the fitted probabilities decrease This behavior can be corroborated by Table [][][] in Appendix [][][].
 
-```{r int-3-4, fig.width = 10, fig.height = 5}
+
+```{r int-3-4,echo=F, fig.width = 10, fig.height = 5}
 p3 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
   scale_fill_manual(values = mycolors)  +
   scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
@@ -773,7 +724,7 @@ p4 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Sub
   labs(title = "Fig. 12 Marginal Effects of Neuro-Muscular Activity")
 grid.arrange(p3, p4, nrow = 1)
 ```
-Figure __ shows how as heart rate and variance in heart rate increases, the fitted probabilities of stress decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][], which show positive coefficients for the interaction between subject and the third principal component for these subjects. This positive cofficient indicates that, for these subjects, as heart rate and variance in heart rate increases, the odds of being stressed increase. Though the remaining subjects exhibit a seemingly "unnatural" trend, with the probability of stress *decreasing* with an increased heart rate, research has found that anxiety can be linked to a slowing heart rate as well.
+
 
 Figure __ shows how as neurological and muscular activity increase, the fitted probabilities of stress decrease similarly for all subjects barring S2, S6, S7, S10, and s14.For these five subjects, the fitted probabilities increase. As can be seen in Table ___ in Appendix ___, the coefficients for the interaction term between subject and the fourth principal component are positive for these subjects. For these individuals, as neuro-muscular activities, such as breathing, increasem the odds of being stressed increase as well. 
 
