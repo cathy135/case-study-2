@@ -152,8 +152,8 @@ remove_select_cov = ALL_df %>%
   dplyr::select(-Temp_mean, -Temp_sd, -Temp_max, -Temp_min) %>%
   dplyr::select(-contains("BVP")) %>%
   dplyr::select(-contains("ECG")) %>%
-  # dplyr::select(-contains("min")) %>%
-  # dplyr::select(-contains("max")) %>%
+  dplyr::select(-contains("min")) %>%
+  dplyr::select(-contains("max")) %>%
   dplyr::select(-contains("ACC_chest_X_mean")) %>%
   dplyr::select(-contains("ACC_chest_Y_mean")) %>%
   dplyr::select(-contains("ACC_chest_Z_mean")) %>%
@@ -207,12 +207,12 @@ wrist_only = wrist_only %>%
   rename(Subject = `ALL_df$Subject`) %>%
   rename(Label = `ALL_df$Label`) %>%
   mutate(Label = ifelse(Label==2, 1, 0))# %>%
-  # dplyr::select(-contains("min")) %>%
-  # dplyr::select(-contains("max"))
+  dplyr::select(-contains("min")) %>%
+  dplyr::select(-contains("max"))
 
 
 # maybe reorder the variables
-col_order <- c("ACC_wrist_x_sd", "ACC_wrist_x_sd", "ACC_wrist_x_sd", "ACC_wrist_y_sd", "ACC_wrist_x_sd", "ACC_wrist_x_sd",  "ACC_wrist_z_sd","ACC_wrist_x_sd", "ACC_wrist_x_sd",  "ACC_wrist_3D_sd", "ACC_wrist_x_sd", "ACC_wrist_x_sd", "EDA_wrist_mean", "EDA_wrist_sd", "ACC_wrist_x_sd", "ACC_wrist_x_sd" "TEMP_wrist_mean", "TEMP_wrist_sd",  "ACC_wrist_x_sd", "ACC_wrist_x_sd", "hr_wrist_mu", "hr_wrist_sd","ACC_wrist_x_sd", "ACC_wrist_x_sd" "Subject", "Label")
+col_order <- c("ACC_wrist_x_sd", "ACC_wrist_y_sd",   "ACC_wrist_z_sd",  "ACC_wrist_3D_sd", "EDA_wrist_mean", "EDA_wrist_sd", "TEMP_wrist_mean", "TEMP_wrist_sd",  "hr_wrist_mu", "hr_wrist_sd", "Subject", "Label")
 wrist_only <- wrist_only[, col_order]
 
 wrist_only$Subject <- factor(wrist_only$Subject, levels = c("S2", "S3","S4", "S5","S6", "S7","S8", "S9","S10", "S11","S13", "S14","S15", "S16","S17"))
@@ -790,9 +790,6 @@ do.call(grid.arrange, lapply(names(remove_select_cov_nb), varvslab))
 
 ## A.2
 ```{r}
-min_max_col = ALL_df %>%
-  dplyr::select(contains("min") | contains("max"))
-
 minmax<- function(var) {
   ggplot(min_max_col, aes_(y=as.name(var))) + geom_boxplot() +
     labs(x ="State", y = as.name(var))
