@@ -27,6 +27,10 @@ library(gridExtra)
 library(grid)
 library(broom)
 library(knitr)
+```
+
+
+```{r}
 library(sjPlot)
 library(RColorBrewer)
 library(kableExtra)
@@ -772,10 +776,11 @@ p4 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Sub
   labs(title = "Fig. 12 Marginal Effects of Neuro-Muscular Activity")
 grid.arrange(p3, p4, nrow = 1)
 ```
-As the variation in mean heart rate increases, the fitted probabilities (where stress is 1) decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][].
+Figure __ shows how as heart rate and variance in heart rate increases, the fitted probabilities of stress decreases similarly for all subjects except for S5, S6, S9, and S17. For these four subjects, the fitted probabilities increase. This behavior can be corroborated by Table [][][] in Appendix [][][], which show positive coefficients for the interaction between subject and the third principal component for these subjects. This positive cofficient indicates that, for these subjects, as heart rate and variance in heart rate increases, the odds of being stressed increase. Though the remaining subjects exhibit a seemingly "unnatural" trend, with the probability of stress *decreasing* with an increased heart rate, research has found that anxiety can be linked to a slowing heart rate as well.
 
-malavi
-Weird people: 6,7,2,14,10
+Figure __ shows how as neurological and muscular activity increase, the fitted probabilities of stress decrease similarly for all subjects barring S2, S6, S7, S10, and s14.For these five subjects, the fitted probabilities increase. As can be seen in Table ___ in Appendix ___, the coefficients for the interaction term between subject and the fourth principal component are positive for these subjects. For these individuals, as neuro-muscular activities, such as breathing, increasem the odds of being stressed increase as well. 
+
+
 
 # Appendix
 
