@@ -443,7 +443,7 @@ rownames(wrist_cm) = c("Predicted Amusement", "Predicted Stress")
 #   kable_styling(full_width = FALSE, position = "left",
 #                 title = "Confusion Matrix for Wrist Data Model")
 
-knitr::kable(list(combo_cm, wrist_cm), caption = "Confusion Matrices for Combined (left) and Wrist Only (right) Data Models")
+knitr::kable(list(combo_cm, wrist_cm), caption = "Confusion Matrices for Combined (top) and Wrist Only (bottom) Data Models")
 ```
 We then investigated the prediction accuracy and f1 scores of each model using a 5-fold cross validation approach. In order to ensure that certain subjects were not over or underrepresented in the testing and training sets, we created stratified folds in which each individual’s representation was proportional to that of their representation in the entire dataset. As indicated in Table 1, the combined data model was shown to be superior in both accuracy and f1 score. 
 
