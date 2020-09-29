@@ -9,6 +9,8 @@ output:
      number_sections: true
 ---
 
+RUNTIME:
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -474,6 +476,7 @@ We used to combined data model to understand the relationship between the variou
 
 ```{r, subj-model, warning = F, include = F,warning = F, message= F}
 # HOPEFULLY THE RIGHT ONE model with no main effect for Subject but with interactions
+set.seed(123)
 pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                   +Dim.2:Subject
                   +Dim.3:Subject
@@ -528,7 +531,7 @@ Figures 3 through 6 show the fitted probability of stress against each principal
 
 Figure 5 shows that heart rate increases, the probability of stress decreases similarly for all subjects except for subjects 5, 6, 9, and 17. For these four subjects, the probabilities increase. Though the remaining subjects exhibit a seemingly "unnatural" trend, with the probability of stress *decreasing* with an increased heart rate, research has found that anxiety can be linked to a slowing heart rate as well [19]. Figure 6 shows that as neurological and muscular activity increase, the probability of stress decrease similarly for all subjects barring subjects 2, 6, 7, 10, and 14. For these five subjects, the probabilities increase. For these individuals, as neuro-muscular activity increases, the odds of stress increases as well. 
 
-These behaviors can be corroborated by the coefficient estimates in A.6. When adding together the main effect of a principal component and its interaction  with a particular subejct, it can be noted that a positive values corespond with an increasing trend in the above plots. Conversely, a negative value will correspond with a decreaseing trend. This is consistent with the notion that positive coefficients in logsitic regression indicate a multiplicative increase in odds, while negative coefficients indicate a decrease. 
+These behaviors can be corroborated by the coefficient estimates in A.5. When adding together the main effect of a principal component and its interaction  with a particular subejct, it can be noted that a positive values corespond with an increasing trend in the above plots. Conversely, a negative value will correspond with a decreaseing trend. This is consistent with the notion that positive coefficients in logsitic regression indicate a multiplicative increase in odds, while negative coefficients indicate a decrease. 
 
 ```{r combo-kfold-cv, warning = F, include = F,warning = F}
 set.seed(123)
@@ -698,16 +701,27 @@ Although we ultimately proposed a model that was effective in discriminating bet
 
 ## A.1
 
-```{r var-label-subject-plot,warning = F, echo = F}
+```{r var-label-subject-plot, fig.width = 10, warning = F, echo = F}
 varvslab<- function(var) {
   ggplot(remove_select_cov, aes_(y=as.name(var), x=factor(remove_select_cov$Label), group = factor(remove_select_cov$Label))) + geom_boxplot() + facet_grid(~remove_select_cov$Subject) +
     labs(x ="State", y = as.name(var))
 }
-do.call(grid.arrange, lapply(names(remove_select_cov_nb)[1:7], varvslab))
 ```
 
-```{r var-label-subject-plot2,warning = F, echo = F}
-do.call(grid.arrange, lapply(names(remove_select_cov_nb)[8:14], varvslab))
+```{r var-label-subject-plot3,warning = F, fig.width = 10,echo = F}
+do.call(grid.arrange, lapply(names(remove_select_cov_nb)[1:4], varvslab))
+```
+
+```{r var-label-subject-plot2,warning = F, fig.width = 10,echo = F}
+do.call(grid.arrange, lapply(names(remove_select_cov_nb)[5:8], varvslab))
+```
+
+```{r var-label-subject-plot5,warning = F, fig.width = 10,echo = F}
+do.call(grid.arrange, lapply(names(remove_select_cov_nb)[9:12], varvslab))
+```
+
+```{r var-label-subject-plot6,warning = F,fig.width = 10, echo = F}
+do.call(grid.arrange, lapply(names(remove_select_cov_nb)[13:14], varvslab))
 ```
 
 ## A.2
@@ -754,9 +768,10 @@ var <- get_pca_var(res.pca)
 corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Combined Data PCA", mar=c(0,0,1,0))
 ```
 
-## A.6
+## A.5
 
 ```{r, echo=F, warning = F,warning = F}
+set.seed(123)
 pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                                  +Dim.2:Subject
                                  +Dim.3:Subject
