@@ -436,27 +436,61 @@ kable(acc_f1_tab, caption = "Accuracy and F1 for Combined and Wrist Only Data Mo
 
 ## Sensitiviy Analysis
 
-```{r}
+```{r, sa-wrist-combo, include=F, eval = F}
 # This will take a while
-Sense_Wrist(PCAdim = 4, win_size = 5)
-Sense_Wrist(PCAdim = 5, win_size = 5)
-Sense_Wrist(PCAdim = 6, win_size = 5)
-Sense_Wrist(PCAdim = 4, win_size = 10)
-Sense_Wrist(PCAdim = 5, win_size = 10)
-Sense_Wrist(PCAdim = 6, win_size = 10)
-Sense_Wrist(PCAdim = 4, win_size = 15)
-Sense_Wrist(PCAdim = 5, win_size = 15)
-Sense_Wrist(PCAdim = 6, win_size = 15)
 
-Sense_Combo(PCAdim = 4, win_size = 5)
-Sense_Combo(PCAdim = 5, win_size = 5)
-Sense_Combo(PCAdim = 6, win_size = 5)
-Sense_Combo(PCAdim = 4, win_size = 10)
-Sense_Combo(PCAdim = 5, win_size = 10)
-Sense_Combo(PCAdim = 6, win_size = 10)
-Sense_Combo(PCAdim = 4, win_size = 15)
-Sense_Combo(PCAdim = 5, win_size = 15)
-Sense_Combo(PCAdim = 6, win_size = 15)
+source("SensitivityAnalysis_wristOnly.R")
+source("SensitivityAnalysis_combined.R")
+source("SensitivityAnalysis_Full.R")
+library(parallel)
+
+wrow1 = mclapply(4:6, function(i) {
+  print(i)
+  Sense_Wrist(PCAdim = i, win_size = 5)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+
+wrow2 = mclapply(4:6, function(i) {
+  print(i)
+  Sense_Wrist(PCAdim = i, win_size = 10)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+
+wrow3 = mclapply(4:6, function(i) {
+  print(i)
+  Sense_Wrist(PCAdim = i, win_size = 15)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+
+wresults = data.frame(matrix(c(unlist(wrow1), unlist(wrow2), unlist(wrow3)), nrow = 3, byrow = TRUE))
+write.csv(wresults, "wrist_SA_results.csv")
+# w11 = Sense_Wrist(PCAdim = 4, win_size = 5)
+# w12 = Sense_Wrist(PCAdim = 5, win_size = 5)
+# w13 = Sense_Wrist(PCAdim = 6, win_size = 5)
+# w21 = Sense_Wrist(PCAdim = 4, win_size = 10)
+# w22 = Sense_Wrist(PCAdim = 5, win_size = 10)
+# w23 = Sense_Wrist(PCAdim = 6, win_size = 10)
+# w31 = Sense_Wrist(PCAdim = 4, win_size = 15)
+# w32 = Sense_Wrist(PCAdim = 5, win_size = 15)
+# w33 = Sense_Wrist(PCAdim = 6, win_size = 15)
+
+crow1 = mclapply(4:6, function(i) {
+  Sense_Combo(PCAdim = i, win_size = 5)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+crow2 =  mclapply(4:6, function(i) {
+  Sense_Combo(PCAdim = i, win_size = 10)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+crow3 = mclapply(4:6, function(i) {
+  Sense_Combo(PCAdim = i, win_size = 15)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+cresults = data.frame(matrix(c(unlist(crow1), unlist(crow2), unlist(crow3)), nrow = 3, byrow = TRUE))
+write.csv(cresults, "combo_SA_results.csv")
+# c11 = Sense_Combo(PCAdim = 4, win_size = 5)
+# c12 = Sense_Combo(PCAdim = 5, win_size = 5)
+# c13 = Sense_Combo(PCAdim = 6, win_size = 5)
+# c21 = Sense_Combo(PCAdim = 4, win_size = 10)
+# c22 = Sense_Combo(PCAdim = 5, win_size = 10)
+# c23 = Sense_Combo(PCAdim = 6, win_size = 10)
+# c31 = Sense_Combo(PCAdim = 4, win_size = 15)
+# c32 = Sense_Combo(PCAdim = 5, win_size = 15)
+# c33 = Sense_Combo(PCAdim = 6, win_size = 15)
 ```
 
 
@@ -648,17 +682,30 @@ kable(final_acc_f1, caption = "Accuracy and f1 for Final Model")
 
 ## Sensitivity Analysis
 
-```{r}
+```{r, eval = F}
 # This will take a while
-Sense_Final(PCAdim = 4, win_size = 5)
-Sense_Final(PCAdim = 5, win_size = 5)
-Sense_Final(PCAdim = 6, win_size = 5)
-Sense_Final(PCAdim = 4, win_size = 10)
-Sense_Final(PCAdim = 5, win_size = 10)
-Sense_Final(PCAdim = 6, win_size = 10)
-Sense_Final(PCAdim = 4, win_size = 15)
-Sense_Final(PCAdim = 5, win_size = 15)
-Sense_Final(PCAdim = 6, win_size = 15)
+# Sense_Final(PCAdim = 4, win_size = 5)
+# Sense_Final(PCAdim = 5, win_size = 5)
+# Sense_Final(PCAdim = 6, win_size = 5)
+# Sense_Final(PCAdim = 4, win_size = 10)
+# Sense_Final(PCAdim = 5, win_size = 10)
+# Sense_Final(PCAdim = 6, win_size = 10)
+# Sense_Final(PCAdim = 4, win_size = 15)
+# Sense_Final(PCAdim = 5, win_size = 15)
+# Sense_Final(PCAdim = 6, win_size = 15)
+
+frow1 = mclapply(4:6, function(i) {
+  Sense_Final(PCAdim = i, win_size = 5)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+frow2 =  mclapply(4:6, function(i) {
+  Sense_Final(PCAdim = i, win_size = 10)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+frow3 = mclapply(4:6, function(i) {
+  Sense_Final(PCAdim = i, win_size = 15)
+}, mc.cores = detectCores(),  mc.set.seed = 123)
+
+fresults = data.frame(matrix(c(unlist(frow1), unlist(frow2), unlist(frow3)), nrow = 3, byrow = TRUE))
+write.csv(fresults, "final_SA_results.csv")
 ```
 
 
@@ -813,110 +860,43 @@ summary(pca.model.interact)
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Benchmark: no pca, no interaction, all variables
-
-
-```{r combo-wrist-kfold-cv-nosubj, include = F,warning = F}
-set.seed(123)
-
-kfoldcv_benchmark = function(df) {
-  
-  actual_values = c()
-  predicted_values = c()
-  fitted_probs = c()
-  
-  # fold_accuracies = c()
-  # fold_f1 = c()
-  
-  fold_no = c()
-  subject = c()
-  
-  #print("at folds")
-  folds <- createFolds(factor(df$Subject), k = 5)
-  
-  #print("past folds")
-  for (i in 1:5) {
-  #train and test
-    col = paste0("Fold", i)
-    indx = unlist(folds[col])
-  train<- df[-indx,]
-  #print(nrow(train))
-  test<- df[indx, ]
-  #print(nrow(test))
-  
-  
-  # run model
-  noPCA_model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train)
-  #summary(wrist.full)
-  pred.test = noPCA_model %>% predict(test, type= "response")
-  fitted_probs = c(fitted_probs, pred.test)
-  pred.test = ifelse(pred.test>0.5, 1,0)
-  predicted_values = c(predicted_values, pred.test)
-  actual_values = c(actual_values, test$Label)
-  subject = c(subject, test$Subject)
-  fold_no = c(fold_no, rep(i, nrow(test)))
-  
-  
-  
-  #acc1 = mean(test1$Label==pred.test)
-  #fold_accuracies = c(fold_accuracies, acc1)
-  
-  # add function to compute f1
-  # blah
-  }
-  #train on training set
-  #test on testing set 
-  #predict labels
-  #find accuracy and f1, add to fold_accuracies and fold_f1
-  #put predicted values in predicted_values
-  #put actual values in actual_values
-  
-  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
-        fold_no, subject))
-  
-  return(cvoutput)
-}
-
-
-finalcvoutput = kfoldcv_benchmark(remove_select_cov)
+## A.6
+```{r make-sa-table-w, echo = F}
+wrist_sa = read.csv("wrist_SA_results.csv")
+wrist_sa = cbind(wrist_sa$X1, wrist_sa$X2, wrist_sa$X3)
+colnames(wrist_sa) = c("5 sec", "10 sec", "15 sec")
+rownames(wrist_sa) = c("4 components", "5 components", "6 components")
+kable(wrist_sa, caption = "Accuracy and f1 for Sensitivity Analysis of Wrist Only Model")
 ```
 
-```{r}
-benchmark_acc_per_fold = finalcvoutput %>%
-  group_by(fold_no) %>%
-  summarize(accuracy = mean(actual_values==predicted_values))
-benchmark_f1_per_fold = finalcvoutput %>%
-  group_by(fold_no) %>%
-  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+```{r make-sa-table-c, echo = F}
+combo_sa = data.frame(read.csv("combo_SA_results.csv"))
+combo_sa = cbind(combo_sa$X1, combo_sa$X2, combo_sa$X3)
+
+colnames(combo_sa) = c("5 sec", "10 sec", "15 sec")
+rownames(combo_sa) = c("4 components", "5 components", "6 components")
+kable(combo_sa, caption = "Accuracy and f1 for Sensitivity Analysis of Combination Data Model")
 
 
-benchmark_acc_f1_data <- as.matrix( c( round(mean(benchmark_acc_per_fold$accuracy),2),
-                                    round(mean(benchmark_f1_per_fold$f1),2)  ),
-                                    ncol=2,
-                                    byrow=TRUE)
-benchmark_acc_f1_data
-
-colnames(benchmark_acc_f1_data)
-colnames(benchmark_acc_f1_data) <- c("benchmark")
-rownames(benchmark_acc_f1_data) <- c("Accuracy","F1")
-benchmark_acc_f1_data <- as.table(benchmark_acc_f1_data)
-kable(benchmark_acc_f1_data, caption = "Accuracy and F1 for Benchmark Only Data Models")
 ```
+
+```{r make-sa-table-f, echo = F}
+final_sa = data.frame(read.csv("final_SA_results.csv"))
+final_sa = cbind(final_sa$X1, final_sa$X2, final_sa$X3)
+
+colnames(final_sa) = c("5sec", "10sec", "15sec")
+rownames(final_sa) = c("4 components", "5 components", "6 components")
+kable(final_sa, caption = "Accuracy and f1 for Sensitivity Analysis of Final Model")
+
+
+```
+
+
+
+
+
+
+
 
 
 

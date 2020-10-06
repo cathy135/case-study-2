@@ -21,8 +21,6 @@ pkg_test("kableExtra")
 
 Sense_Final <- function(PCAdim, win_size){
   
-  win_size = 5
-  PCAdim = 5
   
   ############################
   #### Define Window Size ####
@@ -103,7 +101,7 @@ Sense_Final <- function(PCAdim, win_size){
     feature_data = features_all_modalities(subject_data[i], win_size, 1) #CHANGE FILE PATH 
     subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
     
-    HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/","HR.csv") 
+    HR_fn = paste0("/Users/cathylee/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") 
     
     #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
     HR_data = read.csv(HR_fn)[-1,]
@@ -216,7 +214,6 @@ Sense_Final <- function(PCAdim, win_size){
     
     return(cvoutput)
   }
-  #combocvoutput = kfoldcv_no_subject(pca_vals)
   finalcvoutput = kfoldcv_final(pca_vals)
   
   
@@ -231,6 +228,6 @@ Sense_Final <- function(PCAdim, win_size){
   acc <- mean(final_acc_per_fold$accuracy)
   f1 <- mean(final_f1_per_fold$f1)
   
-  return( c(acc, f1) )
+  return(c(paste0("acc:", round(acc,2), " f1:", round(f1,2)) ))
   
 }

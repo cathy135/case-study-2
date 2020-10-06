@@ -21,9 +21,6 @@ pkg_test("kableExtra")
 
 Sense_Wrist <- function(PCAdim, win_size){
  
-  win_size = 5
-  PCAdim = 5
-  
   ############################
   #### Define Window Size #### 
   ############################
@@ -104,9 +101,8 @@ Sense_Wrist <- function(PCAdim, win_size){
     subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
     #HR_fn <- here("WESAD", subject_no, "HR.csv")
     
-    HR_fn = paste0("./WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") 
+    HR_fn = paste0("/Users/cathylee/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") 
     
-    HR_fn = paste0("~/WESAD/S10/S10_E4_Data/HR.csv") 
     #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
     HR_data = read.csv(HR_fn)[-1,]
     hr = HR_calc(as.data.frame(HR_data), 5, 1)
@@ -215,7 +211,6 @@ Sense_Wrist <- function(PCAdim, win_size){
     
     return(cvoutput)
   }
-  combocvoutput = kfoldcv_no_subject(pca_vals)
   wristcvoutput = kfoldcv_no_subject(wrist_pca_vals)
   
   
@@ -225,12 +220,11 @@ Sense_Wrist <- function(PCAdim, win_size){
   wrist_f1_per_fold = wristcvoutput %>%
     group_by(fold_no) %>%
     summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+
+  acc <- mean(wrist_acc_per_fold$accuracy)
+  f1 <- mean(wrist_f1_per_fold$f1)  
   
-  
-  return( c(wrist_acc_per_fold, wrist_f1_per_fold) )
+  return( c(paste0("acc:", round(acc,2), " f1:", round(f1,2)) ))
   
 }
 
-
-#results <- wristOnly(4, 5)
-  
