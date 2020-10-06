@@ -13,25 +13,36 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r call-libraries, include = F}
-library(zoo)
-library(varian)
-library(tidyverse)
-library(corrplot)
-library(glmnet)
-library(FactoMineR)
-library(factoextra)
-library(MASS)
-library(caret)
-library(MLmetrics)
-library(pROC)
-library(gridExtra)
-library(grid)
-library(broom)
-library(knitr)
-library(sjPlot)
-library(RColorBrewer)
-library(kableExtra)
+```{r}
+#install.packages("FedData")
+library(FedData)
+```
+
+
+```{r call-libraries, include = F, echo= F}
+pkg_test("zoo")
+pkg_test("varian")
+pkg_test("tidyverse")
+pkg_test("corrplot")
+pkg_test("glmnet")
+pkg_test("FactoMineR")
+pkg_test("factoextra")
+pkg_test("MASS")
+pkg_test("caret")
+pkg_test("MLmetrics")
+pkg_test("pROC")
+pkg_test("gridExtra")
+pkg_test("grid")
+pkg_test("broom")
+pkg_test("knitr")
+pkg_test("sjPlot")
+pkg_test("RColorBrewer")
+pkg_test("kableExtra")
+
+source("SensitivityAnalysis_wristOnly.R")
+source("SensitivityAnalysis_combined.R")
+source("SensitivityAnalysis_Full.R")
+
 ```
 
 ```{r calc-stats-features, include = F, eval = F}
@@ -102,10 +113,10 @@ subject_data = file_list[grepl("df_S", file_list, fixed = TRUE)]
 ```{r run-all-featengine-combine, include = F, eval = F}
 ALL_df = NULL
 for (i in 1:length(subject_data)) {
-  print(i)
   feature_data = features_all_modalities(subject_data[i], 5, 1) #CHANGE FILE PATH 
   subject_no = gsub("\\..*","", sub('.*_', '', subject_data[i]))
   HR_fn = paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv") #CHANGE FILEPATH to be : paste0("/hpc/group/sta440-f20/WESAD/WESAD/", subject_no, "/" )
+  print(HR_fn)
   HR_data = read.csv(HR_fn)[-1,]
   hr = HR_calc(as.data.frame(HR_data), 5, 1)
   df_hr = data.frame(matrix(unlist(hr), nrow= length(hr$mu),
@@ -120,6 +131,8 @@ for (i in 1:length(subject_data)) {
 }
 ALL_df = ALL_df %>% filter(Label %in% c("2","3"))
 write.csv(ALL_df, "master_df.csv")
+
+print(paste0("~/case-study-2/WESAD/", subject_no, "/", subject_no, "_E4_Data/HR.csv"))
 ```
 
 # Introduction
@@ -177,19 +190,19 @@ grid.arrange(p1, p2, nrow = 1)
 
 After examining boxplots of the distributions of various physiological measures by affective state (see A.1 for all plots of this type), the features that had the greatest difference in distribution between the two affective states and across the 15 subjects were `EDA_wrist_mean`, `Temp_wrist_mean`, and `hr_wrist_mu`. Figure 1 indicates that for all subjects, the mean EDA values are higher in the stressed state. For subjects 3, 5, 6, 7, 10, and 13, the difference in the distribution of mean EDA between the two states is more drastic than for the other subjects. Figure 2 shows that for some subjects, mean wrist temperature is higher in the stressed state. Conversely, other subjects' mean temperatue tends to be lower when stressed. This points to evidence of some heterogeneity in stress response. In addition, for certain subjects (such as subject 13), there is no overlap in the mean EDA values or mean wrist temperature values between the two states. This is likely to cause perfect separation in logistic regression (see Section 5 for a discussion of potential changes to the experimental design to deal with this issue).
 
-Our correlation matrix (A.2) shows that high collinearity exists among engineered features. Collinearity among covariates can be dangerous in providing unreasonable coefficient estimates with inflated standard errors [14]. As one of our main objectives was to understand the relationship between certain physiological attributes and affective state, it was imperative that our model estimates were trustworthy. For this reason, domain driven insights were useful in selecting certain features to keep in the model, while omitting those contributing to greater multicollinearity. For example, features related to `BVP` and `ECG` measurements were ultimately excluded from our analysis due to their strong relationship with heart rate. As noted earlier, the Empatica E4 provides a measure of heart rate that is algorithmically derived from `BVP` [12]. Heart rate can similarly be derived from `ECG` measurements [15]. Thus, in avoiding redundancy of information, `BVP` and `ECG` features were removed from the analysis, while those regarding `HR` remained. We further opted to remove the mean values of each accelerometry measurement (X, Y, Z, and 3D) over each of the five second windows. Our reasoning for excluding these features  was due to our belief that variance in motion, which was captured by the standard deviation of accelerometry measurements in each window, would be more strongly associated with affective state than average accelerometry [16]. Finally, although we originally computed the minimum and maximum values for each physiological modality, we ultimately omitted these due to issues of underdispersion [17]. Specifically, our exploratory data analysis found that the minimum and maximum measurements across various modalities exhibited small variance. A.2 provides a concrete visualization of these low variances features. 
+Our correlation matrix (A.2) shows that high collinearity exists among engineered features. Collinearity among covariates can be dangerous in providing unreasonable coefficient estimates with inflated standard errors [14]. As one of our main objectives was to understand the relationship between certain physiological attributes and affective state, it was imperative that our model estimates were trustworthy. For this reason, domain driven insights were useful in selecting certain features to keep in the model, while omitting those contributing to greater multicollinearity. For example, features related to `BVP` and `ECG` measurements were ultimately excluded from our analysis due to their strong relationship with heart rate. As noted earlier, the Empatica E4 provides a measure of heart rate that is algorithmically derived from `BVP` [12]. Heart rate can similarly be derived from `ECG` measurements [15]. Thus, in avoiding redundancy of information, `BVP` and `ECG` features were removed from the analysis, while those regarding `HR` remained. We further opted to remove the mean values of each accelerometry measurement (X, Y, Z, and 3D) over each of the five second windows. Our reasoning for excluding these features  was due to our belief that variance in motion, which was captured by the standard deviation of accelerometry measurements in each window, would be more strongly associated with affective state than average accelerometry [16]. Finally, although we originally computed the minimum and maximum values for each physiological modality, we ultimately omitted these due to issues of underdispersion [17]. Specifically, our exploratory data analysis found that the minimum and maximum measurements across various modalities exhibited small variance. A.3 provides a concrete visualization of these low variances features. 
 
 # Methods
 
 ## Principal Component Analysis
 
-After reducing the dimensionality of our feature space, we sought to determine the efficacy of the wrist sensor alone in discriminating between stress and amusement. For this purpose, we created two separate logistic regression models--one with data coming only from the wrist sensor, and the other with data coming from both wrist and chest sensors. In these two datasets, we continued to explore methods to reduce dimensionality and account for high correlation between covariates. Techniques such as stepwise variable selection and lasso regularization were considered, but were found ineffective. We ultimately settled on principal component analysis (PCA) as a means of reducing dimensionality and multicollinearity. Based on the scree plots found in A.3, we chose to utilize 4 components for both the wrist-only and combined data. For both, original features were normalized (mean-centered and standardized) before the extraction of principal components, as is recommended for PCA [18]. 
+After reducing the dimensionality of our feature space, we sought to determine the efficacy of the wrist sensor alone in discriminating between stress and amusement. For this purpose, we created two separate logistic regression models--one with data coming only from the wrist sensor, and the other with data coming from both wrist and chest sensors. In these two datasets, we continued to explore methods to reduce dimensionality and account for high correlation between covariates. Techniques such as stepwise variable selection and lasso regularization were considered, but were found ineffective. We ultimately settled on principal component analysis (PCA) as a means of reducing dimensionality and multicollinearity. Based on the scree plots found in A.4, we chose to utilize 4 components for both the wrist-only and combined data. For both, original features were normalized (mean-centered and standardized) before the extraction of principal components, as is recommended for PCA [18]. 
 
 Our wrist data considered the following original features, before PCA was performed: Wrist `ACC` (X, Y, Z, and 3D) standard deviation, Wrist `EDA` standard deviation and mean, Wrist `TEMP` standard deviation and mean, and `HR` standard deviation and mean. Our combined wrist and chest data considered the following original features, before PCA was performed: Chest `ACC` (X, Y, Z, and 3D) standard deviation, `EMG` standard deviation and mean, Wrist `EDA` standard deviation and mean, Wrist `TEMP` standard deviation and mean, and `HR` standard deviation and mean.
 
 Domain insights were useful in selecting which features to include from which sensors in the combined data model. For example, `ACC` measurements coming from the chest sensor were considered, as opposed to the wrist. This choice was motivated by Table 6 in Schmidt et. al [2], which shows the importance of `ACC` features derived from the chest sensor, but not wrist. The same table highlights the importance of `TEMP` and `EDA` related features coming from the wrist worn device, but not chest, warranting our inclusion of `TEMP` and `EDA` features coming from the wrist sensor in our combined data model. The other features for the combined data come from `HR`, which was only provided by the wrist-worn device, and `EMG`, which only comes from the chest-worn.
 
-We then performed PCA for both the wrist only and combined data. The quality of representation plots (Fig. 3 and Fig. 4) show how much each feature contributes to each of the four components in the wrist-only and combined data models. Darker shades indicate a stronger contribution from a particular covariate to the principal component. As can be seen in the two plots, the resulting principal components are fairly interpretable. For example, for both data sets, standard deviations of `ACC` measurements contribute strongly to the first component. Thus, this component can be interpreted as a proxy for movement. Temperature and EDA are the main contributors to the second component, indicating that it represents information related to dermal temperature and activity (e.g. sweat). The third component clearly relates to heart rate, while the fourth differs slightly between two types of data. The fourth component for wrist only data pertains to variability in temperature, while that of the combined data pertains to neuro-muscular activity. We then fit two separate logistic regression models using the principal components extracted from the wrist-only and combined data, respectively.
+We then performed PCA for both the wrist only and combined data. The quality of representation plots (A.4) show how much each feature contributes to each of the four components in the wrist-only and combined data models. Darker shades indicate a stronger contribution from a particular covariate to the principal component. As can be seen in the two plots, the resulting principal components are fairly interpretable. For example, for both data sets, standard deviations of `ACC` measurements contribute strongly to the first component. Thus, this component can be interpreted as a proxy for movement. Temperature and EDA are the main contributors to the second component, indicating that it represents information related to dermal temperature and activity (e.g. sweat). The third component clearly relates to heart rate, while the fourth differs slightly between two types of data. The fourth component for wrist only data pertains to variability in temperature, while that of the combined data pertains to neuro-muscular activity. We then fit two separate logistic regression models using the principal components extracted from the wrist-only and combined data, respectively.
 
 ```{r wristcorrplot,  include=F,warning = F}
 # ALL_df = read.csv("master_df.csv", header = T)[,-c(1:2)]
@@ -214,6 +227,35 @@ non_biological = c("Label", "Subject")
 wrist_nb = wrist_only[ , !(names(wrist_only) %in% non_biological)]
 ```
 
+
+
+
+
+
+
+```{r}
+noPCA_x <- as.matrix(wrist_nb)
+noPCA_y <- as.matrix(wrist_only$Label)
+
+length(noPCA_x)
+length(noPCA_y)
+noPCA_model <- glmnet(noPCA_x, noPCA_y, family = "binomial", alpha = 1, lambda = NULL)
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```{r pca, include = F,warning = F}
 scaled_wrist_nb = scale(wrist_nb, center = TRUE, scale = TRUE)
 res.pca.wrist <- PCA(scaled_wrist_nb, graph = FALSE, ncp = 4)
@@ -221,9 +263,9 @@ res.pca.wrist <- PCA(scaled_wrist_nb, graph = FALSE, ncp = 4)
 #fviz_eig(res.pca.wrist, addlabels = TRUE, ylim = c(0, 50))
 ```
 
-```{r pca-cont1, echo=F,warning = F}
-var <- get_pca_var(res.pca.wrist)
-corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Fig. 3 QoR Plot for Wrist PCA", mar=c(0,0,1,0))
+```{r pca-cont1, include=F,warning = F}
+#var <- get_pca_var(res.pca.wrist)
+#corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Wrist PCA", mar=c(0,0,1,0))
 ```
 
 ```{r, include = F,warning = F}
@@ -253,6 +295,8 @@ wrist_pca_vals$Subject = wrist_only$Subject
 # mean(test_wrist$Label==pred.test)
 ```
 
+
+
 ```{r pca-combo, include =F,warning = F}
 scaled_select_cov_nb = scale(remove_select_cov_nb, center = TRUE, scale = TRUE)
 res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 4)
@@ -261,9 +305,11 @@ res.pca <- PCA(scaled_select_cov_nb, graph = FALSE, ncp = 4)
 # fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
 
-```{r pca-cont-combo1,  echo=F, fig.width = 5, fig.height = 5,warning = F}
-var <- get_pca_var(res.pca)
-corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Fig. 4 QoR Plot for Combined Data PCA", mar = c(0,0,1,0))
+
+
+```{r pca-cont-combo1,  include=F, fig.width = 5, fig.height = 5,warning = F}
+# var <- get_pca_var(res.pca)
+# corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Combined Data PCA")
 ```
 
 ```{r pca-vars-combo, include =F,warning = F}
@@ -295,7 +341,7 @@ kable(combo_model_tab, caption = "Estimate and Confidence Intervals for Coeffici
 
 ## Model Evaluation
 
-We then investigated the prediction accuracy and f1 scores of each logistic regression model using a 5-fold cross validation approach. In order to ensure that certain subjects were not over or underrepresented in the testing and training sets, we created stratified folds in which each individual’s representation was proportional to that of their representation in the entire dataset. As indicated in Table 1, the combined data model was shown to be superior in both accuracy and f1 score. A naive predictor would always choose 1 (the state that occurs more frequently in the data) and obtain an accuracy of 0.64. Both the combined data model and wrist-only data model have accuracies greater than 0.64. Therefore, we say that our models are useful in making effective predictions.
+We then investigated the prediction accuracy and f1 scores of each logistic regression model using a 5-fold cross validation approach. In order to ensure that certain subjects were not over or underrepresented in the testing and training sets, we created stratified folds in which each individual’s representation was proportional to that of their representation in the entire dataset. As indicated in Table 1, the combined data model was shown to be superior in both accuracy and f1 score. 
 
 ```{r combo-wrist-kfold-cv-nosubj, include = F,warning = F}
 set.seed(123)
@@ -360,6 +406,11 @@ combocvoutput = kfoldcv_no_subject(pca_vals)
 wristcvoutput = kfoldcv_no_subject(wrist_pca_vals)
 ```
 
+```{r}
+head(combocvoutput)
+```
+
+
 ```{r combo-kfold-res, echo =F, warning = F, message= F}
 combo_acc_per_fold = combocvoutput %>%
   group_by(fold_no) %>%
@@ -382,6 +433,33 @@ rownames(acc_f1_data) <- c("Accuracy","F1")
 acc_f1_tab <- as.table(acc_f1_data)
 kable(acc_f1_tab, caption = "Accuracy and F1 for Combined and Wrist Only Data Models")
 ```
+
+## Sensitiviy Analysis
+
+```{r}
+# This will take a while
+Sense_Wrist(PCAdim = 4, win_size = 5)
+Sense_Wrist(PCAdim = 5, win_size = 5)
+Sense_Wrist(PCAdim = 6, win_size = 5)
+Sense_Wrist(PCAdim = 4, win_size = 10)
+Sense_Wrist(PCAdim = 5, win_size = 10)
+Sense_Wrist(PCAdim = 6, win_size = 10)
+Sense_Wrist(PCAdim = 4, win_size = 15)
+Sense_Wrist(PCAdim = 5, win_size = 15)
+Sense_Wrist(PCAdim = 6, win_size = 15)
+
+Sense_Combo(PCAdim = 4, win_size = 5)
+Sense_Combo(PCAdim = 5, win_size = 5)
+Sense_Combo(PCAdim = 6, win_size = 5)
+Sense_Combo(PCAdim = 4, win_size = 10)
+Sense_Combo(PCAdim = 5, win_size = 10)
+Sense_Combo(PCAdim = 6, win_size = 10)
+Sense_Combo(PCAdim = 4, win_size = 15)
+Sense_Combo(PCAdim = 5, win_size = 15)
+Sense_Combo(PCAdim = 6, win_size = 15)
+```
+
+
 
 ```{r, echo = F, warning = F, message= F}
 # add row and col names or get rid of kable
@@ -420,11 +498,10 @@ est = round(summary(pca.model)$coefficients[,1],2)
 ci = round(confint(pca.model),2)
 combo_model_tab = data.frame(cbind(est,ci))
 colnames(combo_model_tab) = c("Estimate", "2.5%", "97.5%")
-rownames(combo_model_tab) = c("(Intercept)", "Motion", "Dermal Temp and Activity", "Heart Rate", "Neuro-Muscular Activity")
 kable(combo_model_tab, caption = "Estimate and Confidence Intervals for Coefficients in the Combined Data Model")
 ```
 
-We used the combined data model to understand the relationship between the various physioloigcal components and stress. From Table 3, we see that increases in variability of movement (Dim.1) and dermal temperature and activity (Dim.2) are associated with a multiplicative *increase* in the odds of stress. Conversely, increases in heart rate (Dim.3) and neuro-muscular activity (Dim.4) are associated with a multiplicative *decrease* in the odds of stress. Though it may seem "unnatural" that the odds of stress *decrease* with an increasing heart rate, research has found that anxiety has been linked to a slowing heart rate [19]. However, in order to determine if these trends are homogeneous, we added interaction effects between `subject` and each of the principal components to the existing combined data model. Here, `subject` represents the participant for which observered data pertains to. The output of the logisitic regression model for combined data with interactions can be found in A.4. 
+We used the combined data model to understand the relationship between the various physioloigcal components and stress. From Table 3, we see that increases in variability of movement (Dim.1) and dermal temperature and activity (Dim.2) are associated with a multiplicative *increase* in the odds of stress. Conversely, increases in heart rate (Dim.3) and neuro-muscular activity (Dim.4) are associated with a multiplicative *decrease* in the odds of stress. Though it may seem "unnatural" that the odds of stress *decrease* with an increasing heart rate, research has found that anxiety has been linked to a slowing heart rate [19]. However, in order to determine if these trends are homogeneous, we added interaction effects between `subject` and each of the principal components to the existing combined data model. Here, `subject` represents the participant for which observered data pertains to. The output of the logisitic regression model for combined data with interactions can be found in A.5. 
 
 ```{r, subj-model, warning = F, include = F,warning = F, message= F}
 # HOPEFULLY THE RIGHT ONE model with no main effect for Subject but with interactions
@@ -434,8 +511,6 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                   +Dim.3:Subject
                   +Dim.4:Subject
                  , family = binomial(link="logit"), data=pca_vals)
-
-
 # summary(pca.model.interact)
 # pred.test = pca.model.interact %>% predict(pca_vals, type= "response")
 # pca_vals$fitted = pred.test
@@ -452,36 +527,35 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
 # Define the number of colors you want
 nb.cols <- 15
 mycolors <- colorRampPalette(brewer.pal(8, "Set2"))(nb.cols)
-p1=plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject"), ci.lvl = FALSE) +
-  
+p1=plot_model(pca.model.interact, type = "pred", terms = c("Dim.1 [all]", "Subject")) +
   scale_fill_manual(values = mycolors) +  
   scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
-  labs(title = "Fig. 5 Marginal Effects of Motion", x = "Motion")
-p2=plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject"), ci.lvl = FALSE) +
+  labs(title = "Fig. 3 Marginal Effects of Motion")
+p2=plot_model(pca.model.interact, type = "pred", terms = c("Dim.2 [all]", "Subject")) +
   scale_fill_manual(values = mycolors)  +
   scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
-  labs(title = "Fig. 6 Marginal Effects of Dermal Temp and Activity", x = "Dermal Temp and Activity")
+  labs(title = "Fig. 4 Marginal Effects of Dermal Temp and Activity")
 grid.arrange(p1, p2, nrow = 1)
 ```
 
 
 ```{r int-3-4,echo=F, fig.width = 10, fig.height = 5,warning = F, message= F}
-p3 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject"), ci.lvl = FALSE) +
+p3 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.3 [all]", "Subject")) +
   scale_fill_manual(values = mycolors)  +
   scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
-  labs(title = "Fig. 7 Marginal Effects of Heart Rate", x = "Heart Rate")
-p4 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject"), ci.lvl = FALSE) +
+  labs(title = "Fig. 5 Marginal Effects of Heart Rate")
+p4 = plot_model(pca.model.interact, type = "pred", terms = c("Dim.4 [all]", "Subject")) +
   scale_fill_manual(values = mycolors)  +
   scale_y_continuous(name="Fitted Probabilites", limits=c(0, 1)) +
-  labs(title = "Fig. 8 Marginal Effects of Neuro-Muscular Activity", x = "Neuro-Muscular Activity")
+  labs(title = "Fig. 6 Marginal Effects of Neuro-Muscular Activity")
 grid.arrange(p3, p4, nrow = 1)
 ```
 
-Figures 5 through 8 show the fitted probability of stress against each principal component, with different colors representing different subjects. From figure 5, we see that as the variation in motion (Dim.1) increases, the probability of stress increases similarly for all subjects, except for subjects 13 and 2. We note that for subjects 13 and 2, as the variability of motion increases, the probability of stress increases at a slower rate than other subjects. However, all subjects exhibit an increasing trend. Figure 6 shows that as the variation in mean dermal temperature and activity increases (Dim.2) increases, the probability of stress increases similarly for all subjects except for subjects 2, 7, and 13. For these three subjects, the probabilities decrease. 
+Figures 3 through 6 show the fitted probability of stress against each principal component, with different colors representing different subjects. From figure 3, we see that as the variation in motion (Dim.1) increases, the probability of stress increases similarly for all subjects, except for subjects 13 and 2. We note that for subjects 13 and 2, as the variability of motion increases, the probability of stress increases at a slower rate than other subjects. However, all subjects exhibit an increasing trend. Figure 4 shows that as the variation in mean dermal temperature and activity increases (Dim.2) increases, the probability of stress increases similarly for all subjects except for subjects 2, 7, and 13. For these three subjects, the probabilities decrease. 
 
-Figure 7 shows that as heart rate (Dim.3) increases, the probability of stress decreases similarly for all subjects except for subjects 5, 6, 9, and 17. For these four subjects, the probabilities increase. Figure 8 shows that as neurological and muscular activity (Dim.4) increase, the probability of stress decreases similarly for all subjects barring subjects 2, 6, 7, 10, and 14. For these five subjects, as neuro-muscular activity increases, the probability of stress increases as well. 
+Figure 5 shows that as heart rate (Dim.3) increases, the probability of stress decreases similarly for all subjects except for subjects 5, 6, 9, and 17. For these four subjects, the probabilities increase. Figure 6 shows that as neurological and muscular activity (Dim.4) increase, the probability of stress decreases similarly for all subjects barring subjects 2, 6, 7, 10, and 14. For these five subjects, as neuro-muscular activity increases, the probability of stress increases as well. 
 
-These behaviors can be corroborated by the coefficient estimates in A.4. When adding together the main effect of a principal component and its interaction  with a particular subejct, it can be noted that positive values corespond with an increasing trend in the above plots. Conversely, negative values correspond with a decreaseing trend. This is consistent with the notion that positive coefficients in logsitic regression indicate a multiplicative increase in the odds of an outcome, while negative coefficients signify a decrease. 
+These behaviors can be corroborated by the coefficient estimates in A.5. When adding together the main effect of a principal component and its interaction  with a particular subejct, it can be noted that positive values corespond with an increasing trend in the above plots. Conversely, negative values correspond with a decreaseing trend. This is consistent with the notion that positive coefficients in logsitic regression indicate a multiplicative increase in the odds of an outcome, while negative coefficients signify a decrease. 
 
 ```{r combo-kfold-cv, warning = F, include = F,warning = F}
 set.seed(123)
@@ -549,7 +623,7 @@ actual_values = c(actual_values, test$Label)
 finalcvoutput = kfoldcv_final(pca_vals)
 ```
 
-```{r final-kfold-res, echo = F,warning = F, message= F}
+```{r final-kfold-res, include = F,warning = F, message= F}
 final_acc_per_fold = finalcvoutput %>%
   group_by(fold_no) %>%
   summarize(accuracy = mean(actual_values==predicted_values))
@@ -567,10 +641,27 @@ final_f1_per_fold = finalcvoutput %>%
 final_acc_f1 <- matrix(c(round(mean(final_acc_per_fold$accuracy),2), 
                          round(mean(final_f1_per_fold$f1),2)),nrow=1, ncol=2, byrow=TRUE)
 colnames(final_acc_f1) <- c("Accuracy","F1")
-rownames(final_acc_f1) <- c("Final Model")
+rownames(final_acc_f1) <- c("")
 final_acc_f1 <- as.table(final_acc_f1)
 kable(final_acc_f1, caption = "Accuracy and f1 for Final Model")
 ```
+
+## Sensitivity Analysis
+
+```{r}
+# This will take a while
+Sense_Final(PCAdim = 4, win_size = 5)
+Sense_Final(PCAdim = 5, win_size = 5)
+Sense_Final(PCAdim = 6, win_size = 5)
+Sense_Final(PCAdim = 4, win_size = 10)
+Sense_Final(PCAdim = 5, win_size = 10)
+Sense_Final(PCAdim = 6, win_size = 10)
+Sense_Final(PCAdim = 4, win_size = 15)
+Sense_Final(PCAdim = 5, win_size = 15)
+Sense_Final(PCAdim = 6, win_size = 15)
+```
+
+
 
 ```{r cm-curve,  echo=F, fig.width = 8, fig.height = 4, warning = F, message = F}
 final_cm = as.table(confusionMatrix(as.factor(finalcvoutput$predicted_values), as.factor(finalcvoutput$actual_values)))
@@ -579,12 +670,12 @@ rownames(final_cm) = c("Predicted Amusement", "Predicted Stress")
 kable(final_cm, caption = "Confusion Matrix for Final Model")
 ```
 
-```{r, roc, echo=F, warning = F, fig.width = 4, fig.height = 4, fig.align = 'center', message = F}
+```{r, roc, echo=F, warning = F, fig.width = 8, fig.height = 4, message = F}
 roc_object = roc(as.numeric(finalcvoutput$actual_values), as.numeric(finalcvoutput$predicted_values, direction="<"))
-plot(roc_object, col="black", lwd=3, main="Fig. 9 ROC Plot for Final Model")
+plot(roc_object, col="black", lwd=3, main="Fig. 7 ROC Plot for Final Model")
 ```
 
-Table 4 shows the accuracy and f1 scores of the combined data model with subject interactions. These metrics were computed using the same 5-fold cross validation approach described in Section 3.2. The ROC curve in figure 9 shows that our final model discriminates moderately well between the stress and amusement states. Specifically, the area under the curve is `r round(auc(roc_object),2)`. 
+Table 4 shows the accuracy and f1 scores of the combined data model with subject interactions. These metrics were computed using the same 5-fold cross validation approach described in Section 3.2. The ROC curve in figure 7 shows that our final model discriminates moderately well between the stress and amusement states. Specifically, the area under the curve is `r round(auc(roc_object),2)`. 
 
 # Conclusions and Limitations
 In conclusion, sensor data *is* useful in discriminating between stress and amusement conditions. While using wrist-only data yielded an accuracy comparable to that of using both types of sensor data, the f1 score indicates that using sensor data in combination is more useful in discriminating between the two states. It appears that greater variability in movement and dermal activity (e.g. sweat) are related to a higher likelihood of stress, whereas greater heart rate and neuro-muscular activity are related to a lower likelihood of stress. Adding interaction effects between the 15 subjects and the physiological components shows that these trends are not homogenous, however. For instance, for some subjects, as heart rate increases, so does the probability of stress. 
@@ -677,25 +768,40 @@ do.call(grid.arrange, p)
 
 ## A.3
 
+```{r corrplot, echo = F, fig.height=5, fig.width=5,warning = F}
+cormatrix = cor(remove_select_cov_nb)
+corrplot::corrplot(cormatrix, method="color", addCoef.col="black", tl.cex = 0.4, number.cex= 10/ncol(remove_select_cov_nb),  title="Correlation Matrix of Engineered Features", mar=c(0,0,1,0))
+```
+
+```{r,warning = F, echo=F}
+cormatrix = cor(wrist_nb)
+corrplot::corrplot(cormatrix, method = "color", addCoef.col="black", tl.cex = 0.6, number.cex= 8/ncol(wrist_nb), title="Correlation Matrix of Engineered Features (Wrist Only)", mar=c(0,0,1,0))
+```
+
+## A.4
+
 ```{r screeee,warning = F, echo=F, message = 4}
 fviz_eig(res.pca.wrist, addlabels = TRUE, ylim = c(0, 50), title = "Scree Plot for Wrist Only Data")
 ```
 
-```{r pca-cont2,  include=F, fig.width = 5, fig.height =5,warning = F}
-# var <- get_pca_var(res.pca.wrist)
-# corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Wrist PCA", mar=c(0,0,1,0))
+```{r pca-cont2,  echo=F, fig.width = 5, fig.height =5,warning = F}
+var <- get_pca_var(res.pca.wrist)
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Wrist PCA", mar=c(0,0,1,0))
 ```
 
 ```{r screee, echo=F,warning = F}
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50),title = "Scree Plot for Combined Data")
 ```
 
-```{r pca-cont-combo2,  include=F, fig.width = 5, fig.height = 5,warning = F}
-# var <- get_pca_var(res.pca)
-# corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Combined Data PCA", mar=c(0,0,1,0))
+
+
+
+```{r pca-cont-combo2,  echo=F, fig.width = 5, fig.height = 5,warning = F}
+var <- get_pca_var(res.pca)
+corrplot::corrplot(var$cos2, is.corr=FALSE, tl.cex = 0.5, number.cex= 3/ncol(remove_select_cov_nb), title = "Quality of Representation Plot for Combined Data PCA", mar=c(0,0,1,0))
 ```
 
-## A.4
+## A.5
 
 ```{r, echo=F, warning = F,warning = F}
 set.seed(123)
@@ -705,3 +811,121 @@ pca.model.interact = glm(Label ~ Dim.1+Dim.2+Dim.3+Dim.4+Dim.1:Subject
                                  +Dim.4:Subject, family = binomial(link="logit"), data=pca_vals)
 summary(pca.model.interact)
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Benchmark: no pca, no interaction, all variables
+
+
+```{r combo-wrist-kfold-cv-nosubj, include = F,warning = F}
+set.seed(123)
+
+kfoldcv_benchmark = function(df) {
+  
+  actual_values = c()
+  predicted_values = c()
+  fitted_probs = c()
+  
+  # fold_accuracies = c()
+  # fold_f1 = c()
+  
+  fold_no = c()
+  subject = c()
+  
+  #print("at folds")
+  folds <- createFolds(factor(df$Subject), k = 5)
+  
+  #print("past folds")
+  for (i in 1:5) {
+  #train and test
+    col = paste0("Fold", i)
+    indx = unlist(folds[col])
+  train<- df[-indx,]
+  #print(nrow(train))
+  test<- df[indx, ]
+  #print(nrow(test))
+  
+  
+  # run model
+  noPCA_model = glm(Label ~ .-Subject, family = binomial(link="logit"), data=train)
+  #summary(wrist.full)
+  pred.test = noPCA_model %>% predict(test, type= "response")
+  fitted_probs = c(fitted_probs, pred.test)
+  pred.test = ifelse(pred.test>0.5, 1,0)
+  predicted_values = c(predicted_values, pred.test)
+  actual_values = c(actual_values, test$Label)
+  subject = c(subject, test$Subject)
+  fold_no = c(fold_no, rep(i, nrow(test)))
+  
+  
+  
+  #acc1 = mean(test1$Label==pred.test)
+  #fold_accuracies = c(fold_accuracies, acc1)
+  
+  # add function to compute f1
+  # blah
+  }
+  #train on training set
+  #test on testing set 
+  #predict labels
+  #find accuracy and f1, add to fold_accuracies and fold_f1
+  #put predicted values in predicted_values
+  #put actual values in actual_values
+  
+  cvoutput = data.frame(cbind(actual_values, predicted_values, fitted_probs, 
+        fold_no, subject))
+  
+  return(cvoutput)
+}
+
+
+finalcvoutput = kfoldcv_benchmark(remove_select_cov)
+```
+
+```{r}
+benchmark_acc_per_fold = finalcvoutput %>%
+  group_by(fold_no) %>%
+  summarize(accuracy = mean(actual_values==predicted_values))
+benchmark_f1_per_fold = finalcvoutput %>%
+  group_by(fold_no) %>%
+  summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
+
+
+benchmark_acc_f1_data <- as.matrix( c( round(mean(benchmark_acc_per_fold$accuracy),2),
+                                    round(mean(benchmark_f1_per_fold$f1),2)  ),
+                                    ncol=2,
+                                    byrow=TRUE)
+benchmark_acc_f1_data
+
+colnames(benchmark_acc_f1_data)
+colnames(benchmark_acc_f1_data) <- c("benchmark")
+rownames(benchmark_acc_f1_data) <- c("Accuracy","F1")
+benchmark_acc_f1_data <- as.table(benchmark_acc_f1_data)
+kable(benchmark_acc_f1_data, caption = "Accuracy and F1 for Benchmark Only Data Models")
+```
+
+
+
+
+
+
+
+
+
+
+
+
