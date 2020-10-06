@@ -19,7 +19,7 @@ pkg_test("sjPlot")
 pkg_test("RColorBrewer")
 pkg_test("kableExtra")
 
-#wristOnly <- function(PCAdim, win_size){
+Sense_Wrist <- function(PCAdim, win_size){
  
   win_size = 5
   PCAdim = 5
@@ -229,7 +229,7 @@ pkg_test("kableExtra")
   
   return( c(wrist_acc_per_fold, wrist_f1_per_fold) )
   
-#}
+}
 
 
 #results <- wristOnly(4, 5)
