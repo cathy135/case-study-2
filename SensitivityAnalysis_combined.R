@@ -21,8 +21,6 @@ pkg_test("kableExtra")
 
 Sense_Combo <- function(PCAdim, win_size){
   
-  win_size = 5
-  PCAdim = 5
   
   ############################
   #### Define Window Size ####

@@ -21,8 +21,6 @@ pkg_test("kableExtra")
 
 Sense_Final <- function(PCAdim, win_size){
   
-  win_size = 5
-  PCAdim = 5
   
   ############################
   #### Define Window Size ####
@@ -216,7 +214,6 @@ Sense_Final <- function(PCAdim, win_size){
     
     return(cvoutput)
   }
-  #combocvoutput = kfoldcv_no_subject(pca_vals)
   finalcvoutput = kfoldcv_final(pca_vals)
   
   

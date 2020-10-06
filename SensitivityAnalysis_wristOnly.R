@@ -19,11 +19,8 @@ pkg_test("sjPlot")
 pkg_test("RColorBrewer")
 pkg_test("kableExtra")
 
-#wristOnly <- function(PCAdim, win_size){
+Sense_Wrist <- function(PCAdim, win_size){
  
-  win_size = 5
-  PCAdim = 5
-  
   ############################
   #### Define Window Size #### 
   ############################
@@ -215,7 +212,6 @@ pkg_test("kableExtra")
     
     return(cvoutput)
   }
-  combocvoutput = kfoldcv_no_subject(pca_vals)
   wristcvoutput = kfoldcv_no_subject(wrist_pca_vals)
   
   
@@ -225,12 +221,11 @@ pkg_test("kableExtra")
   wrist_f1_per_fold = wristcvoutput %>%
     group_by(fold_no) %>%
     summarize(f1 = F1_Score(actual_values, predicted_values, positive = NULL)) 
-  
-  
-  return( c(wrist_acc_per_fold, wrist_f1_per_fold) )
-  
-#}
 
-
-#results <- wristOnly(4, 5)
+  acc <- mean(wrist_acc_per_fold$accuracy)
+  f1 <- mean(wrist_f1_per_fold$f1)  
   
+  return( c(acc, f1) )
+  
+}
+
