@@ -349,9 +349,10 @@ The combined data logistic regression model has the following formulation:
 
 $$log(\frac{P_i(Stress)}{1-P_i(Stress)}) = \beta_0 + {\beta_1Dim.1_i}^{comb} + {\beta_2Dim.2_i}^{comb} +{\beta_3*Dim.3_i}^{comb} + {\beta_4*Dim.4_i}^{comb} $$
 
-Note that the $E4$ superscript refers to components derived from the wrist-worn data, Empatica E4 device, while the $comb$ superscript refers to the components derived from the combined data. 
+Note that the $E4$ superscript refers to components derived from the wrist-worn data, while the $comb$ superscript refers to the components derived from the combined data. 
 
-We then investigated the prediction accuracy and f1 scores of each logistic regression model using a 5-fold cross validation approach. We chose to conisder the models' f1 score, which is the harmonic mean of precision and recall, due to the fact that this metric is more appropriate for settings with class imbalance. (EXPLAIN IMBALANCE OF CURRENT DATASET). In order to ensure that certain subjects were not over or underrepresented in the testing and training sets, we created stratified folds in which each individual’s representation was proportional to that of their representation in the entire dataset. As indicated in Table 1, the combined data model was shown to be superior in both accuracy and f1 score. Sensitivity analysis was conducted by variying both the number of principal components and the choice of ______ (window size shift), and results (A.___) indicate that our model is not strongly sensitive to either. 
+We then investigated the prediction accuracy and f1 scores of each logistic regression model using a 5-fold cross validation approach. We chose to conisder the f1 score, which is the harmonic mean of precision and recall, due to the fact that this metric is more appropriate for settings with class imbalance. In our current dataset, we see that the stressed response occurs more than 50% of the time, warranting a consideration of f1 in addition to accuracy. In order to ensure that certain subjects were not over or underrepresented in the testing and training sets, we created stratified folds in which each individual’s representation was proportional to that of their representation in the entire dataset. As indicated in Table 1, the combined data model was shown to be superior in both accuracy and f1 score. For the wrist-worn and combined data models, sensitivity analysis was conducted by variying both the number of principal components and the choice of window size. Results (___) indicate that our models are not strongly sensitive to either. 
+
 
 ```{r combo-wrist-kfold-cv-nosubj, include = F,warning = F}
 set.seed(123)
@@ -547,7 +548,11 @@ kable(combo_model_tab, caption = "Estimate and Confidence Intervals for Coeffici
 
 We used the combined data model to understand the relationship between the various physioloigcal components and stress. From Table 3, we see that increases in variability of movement (Dim.1) and dermal temperature and activity (Dim.2) are associated with a multiplicative *increase* in the odds of stress. Conversely, increases in heart rate (Dim.3) and neuro-muscular activity (Dim.4) are associated with a multiplicative *decrease* in the odds of stress. Though it may seem "unnatural" that the odds of stress *decrease* with an increasing heart rate, research has found that anxiety has been linked to a slowing heart rate [19]. However, in order to determine if these trends are homogeneous, we added interaction effects between `subject` and each of the principal components to the existing combined data model. Here, `subject` represents the participant for which observered data pertains to. The output of the logisitic regression model for combined data with interactions can be found in A.5. This model has the following formulation, where the $comb$ superscript refers to the components derived from the combined data.
 
-$$log(\frac{P_i(Stress)}{1-P_i(Stress)}) = \beta_0 + {\beta_1Dim.1_i}^{comb} + {\beta_2Dim.2_i}^{comb} +{\beta_3*Dim.3_i}^{comb} + {\beta_4*Dim.4_i}^{comb}) + \\ \sum_{j \in S} \beta_{5j}Dim.1_i* I(Subject_i = j) + \sum_{j \in S} \beta_{6j}Dim.2_i* I(Subject_i = j) +\\ \sum_{j \in S} \beta_{7j}Dim.3_i* I(Subject_i = j) + \sum_{j \in S} \beta_{8j}Dim.4_i* I(Subject_i = j), \\ S = \{3, 4, ..., 11, 13, ...17\} $$ 
+$$\begin{aligned} 
+log(\frac{P_i(Stress)}{1-P_i(Stress)}) &= \beta_0 + {\beta_1Dim.1_i}^{comb} + {\beta_2Dim.2_i}^{comb} +{\beta_3*Dim.3_i}^{comb} + {\beta_4*Dim.4_i}^{comb}) + \\ &\quad \sum_{j \in S} \beta_{5j}Dim.1_i* I(Subject_i = j) + \sum_{j \in S} \beta_{6j}Dim.2_i* I(Subject_i = j) +\\ 
+&\quad \sum_{j \in S} \beta_{7j}Dim.3_i* I(Subject_i = j) + \sum_{j \in S} \beta_{8j}Dim.4_i* I(Subject_i = j), \\ 
+S &= \{3, 4, ..., 11, 13, ...17\} 
+\end{aligned}$$ 
 
 
 Sensitivity analysis was conducted on this model by variying both the number of principal components and the choice of ______ (window size shift). Results (A.___) indicate that our model is not strongly sensitive to either. 
